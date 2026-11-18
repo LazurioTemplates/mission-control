@@ -17,6 +17,8 @@ import { type Locale, localeOr } from "../i18n/locale.ts";
 export interface ApiOptions {
   /** Origins a writing request may come from (the App's own, loopback and hosted). */
   allowedOrigins: ReadonlySet<string>;
+  /** Who came and whether they may write now; `accessOf` of `access.ts` in the App. */
+  access: (request: Request) => { admitted: boolean; mayWrite: boolean };
   /** Today's date for new records; injectable for tests. */
   today?: () => string;
   /**
@@ -272,6 +274,18 @@ export function createApi(store: MissionControlStore, options: ApiOptions) {
     const url = new URL(req.url);
     const refused = writeRefusal(req, options.allowedOrigins);
     if (refused) return refused;
+    // Who came: no application role grants nothing (decision 0231).
+    const access = options.access(req);
+    if (!access.admitted)
+      return refusal("forbidden", "Mission Control needs an application role.", 403);
+    // One writer: a copy that may not write refuses every change before it
+    // reaches the store, so no draft, publish or pull starts there either.
+    if (WRITE_METHODS.has(req.method) && !access.mayWrite)
+      return refusal(
+        "data_read_only",
+        "This copy of Mission Control does not change data now.",
+        409,
+      );
     try {
       return await route(req, url);
     } catch (error) {

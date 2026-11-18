@@ -1,10 +1,13 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { gatewayRequest, TEST_ORIGIN } from "@lazurio/module-kit/tools/testing";
 import { toStableYaml } from "@lazurio/repository-db";
 import { createRepositoryDbStore } from "../src/data/repository-db-store.ts";
+import { MESSAGES } from "../src/i18n/messages.ts";
+import { copyWrites } from "../src/server/access.ts";
 import { createApi } from "../src/server/api.ts";
+import { wordDraftCard } from "../src/ui/draft-wording.ts";
 import { storeContract } from "./store-contract.ts";
 import { colleagueClone, createFixtureRepo, git } from "./support/fixture-repo.ts";
 import { newPlan } from "./support/seed.ts";
@@ -166,7 +169,7 @@ describe("repository-db store", () => {
       mountRoot: fixture.mountRoot,
       expect: { remote: fixture.origin, branch: "v3", within: fixture.moduleRoot },
       intervalMs: 0,
-      sync: false,
+      writes: false,
     });
     try {
       const colleague = colleagueClone(fixture);
@@ -197,6 +200,64 @@ describe("repository-db store", () => {
       );
       expect(pull.status).toBe(409);
       expect(git(fixture.mountRoot, ["rev-parse", "origin/v3"])).toBe(tracked);
+    } finally {
+      store.close();
+      fixture.cleanup();
+    }
+  });
+
+  test("a read-only replica shows its draft without the network", async () => {
+    const fixture = createFixtureRepo({ sample: true });
+    const writer = createRepositoryDbStore({
+      mountRoot: fixture.mountRoot,
+      expect: { remote: fixture.origin, branch: "v3", within: fixture.moduleRoot },
+      intervalMs: 0,
+    });
+    await writer.savePlan(newPlan(), null);
+    writer.close();
+    // The origin is gone: a fetch would fail, so a status needing one shows it.
+    rmSync(fixture.originPath, { recursive: true, force: true });
+    const store = createRepositoryDbStore({
+      mountRoot: fixture.mountRoot,
+      expect: { remote: fixture.origin, branch: "v3", within: fixture.moduleRoot },
+      intervalMs: 0,
+      writes: false,
+    });
+    try {
+      expect((await store.available()).ok).toBe(true);
+      const card = await store.draft();
+      expect(card.unavailableReason).toBeUndefined();
+      expect(card.status?.dirtyPaths).toEqual([
+        "data/mission-control/plans/2026/11/EX-0005-shared-glossary-review.yaml",
+      ]);
+      expect(card.records).toHaveLength(1);
+      // The card a person sees: the draft of one record, not "unavailable".
+      const shown = wordDraftCard(card, MESSAGES.en);
+      expect(shown.model.visible).toBe(true);
+      expect(shown.model.tone).toBe("draft");
+      expect(shown.model.count).toBe(1);
+      expect(shown.headline).toBe(MESSAGES.en.draft.headline.draft(1));
+    } finally {
+      store.close();
+      fixture.cleanup();
+    }
+  });
+
+  test("a copy that may not write changes no record, as main.ts opens it in production", async () => {
+    const fixture = createFixtureRepo({ sample: true });
+    const writes = copyWrites({ LAZURIO_RUNTIME_DEPLOYMENT: "production" });
+    expect(writes).toBe(false);
+    const store = createRepositoryDbStore({
+      mountRoot: fixture.mountRoot,
+      expect: { remote: fixture.origin, branch: "v3", within: fixture.moduleRoot },
+      intervalMs: 0,
+      writes,
+    });
+    try {
+      await expect(store.savePlan(newPlan(), null)).rejects.toMatchObject({
+        code: "data_read_only",
+      });
+      expect(git(fixture.mountRoot, ["status", "--porcelain"])).toBe("");
     } finally {
       store.close();
       fixture.cleanup();

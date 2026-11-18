@@ -8,6 +8,7 @@ import {
   RepositoryDbError,
   recordRevisionFromBytes,
   type SyncHost,
+  type SyncHostStatus,
   toStableYaml,
   writeFileAtomic,
   writeRecordDraft,
@@ -37,7 +38,7 @@ import type {
   Stored,
   StoreEvent,
 } from "./store.ts";
-import { StoreError } from "./store.ts";
+import { readOnly, StoreError } from "./store.ts";
 
 /** `Repository-Db-Source` of every publish from this App. */
 const SOURCE = "mission-control-v3";
@@ -50,10 +51,12 @@ export interface RepositoryDbStoreOptions {
   /** Background fetch cadence; `0` runs no timer (tests). */
   intervalMs?: number;
   /**
-   * `false` for a copy that may not write (the one writer rule): it never
-   * fetches, pulls or publishes, not even when a read finds no status yet.
+   * False for a copy that may not write (the one writer rule): it changes no
+   * record and never fetches, pulls or publishes, neither on a timer nor on a
+   * read; its status is read from the checkout as it stands. The host keeps
+   * its replica.
    */
-  sync?: boolean;
+  writes?: boolean;
 }
 
 interface FileRecord<T> {
@@ -91,14 +94,41 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
       return collectionRecord;
     },
   });
-  const sync = options.sync ?? true;
-  if (sync && (options.intervalMs ?? 30_000) > 0) host.start();
-  // A copy that does not sync refuses every operation that would fetch, pull
-  // or publish, before it reaches the sync host.
-  const syncs = () => {
-    if (!sync)
-      throw new StoreError("data_read_only", "This copy does not change, pull or publish data.");
-  };
+  const writes = options.writes ?? true;
+  if (writes && (options.intervalMs ?? 30_000) > 0) host.start();
+
+  /**
+   * The status the draft card comes from. A copy that writes lets the host
+   * check (fetch, catch up) before the first status; a copy that may not
+   * write reads it from the checkout, with no network.
+   */
+  async function status(): Promise<
+    Pick<SyncHostStatus, "available" | "error" | "sync" | "conflict" | "pullBlocked" | "draftOwner">
+  > {
+    const known = host.status();
+    if (known.sync) return known;
+    if (writes) return host.refresh().catch(() => host.status());
+    return host
+      .read((db) => ({
+        available: true,
+        error: null,
+        sync: db.status(),
+        conflict: db.conflict() ?? null,
+        pullBlocked: null,
+        draftOwner: db.draftOwner() ?? null,
+      }))
+      .catch((error: unknown) => ({
+        available: false,
+        error: {
+          code: error instanceof RepositoryDbError ? error.code : "mount_unavailable",
+          message: error instanceof Error ? error.message : String(error),
+        },
+        sync: null,
+        conflict: null,
+        pullBlocked: null,
+        draftOwner: null,
+      }));
+  }
 
   /**
    * The checkout as the shared check of `files.ts` reads it, for the records,
@@ -216,7 +246,7 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
     );
   }
 
-  return {
+  const store: MissionControlStore = {
     async available() {
       try {
         await host.read(() => true);
@@ -304,12 +334,11 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
     async draft(locale = DEFAULT_LOCALE): Promise<DraftCard> {
       // The host computes its status in the background; before the first
       // check (or without a timer) it is computed now.
-      let status = host.status();
-      if (!status.sync && sync) status = await host.refresh().catch(() => host.status());
-      if (!status.available) {
+      const current = await status();
+      if (!current.available) {
         return {
           status: null,
-          unavailableReason: status.error?.message ?? "The data checkout is not available yet.",
+          unavailableReason: current.error?.message ?? "The data checkout is not available yet.",
         };
       }
       return engine(() =>
@@ -328,20 +357,19 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
             };
           });
           const card: DraftCard = {
-            status: status.sync,
-            conflict: status.conflict,
-            pullBlocked: status.pullBlocked,
+            status: current.sync,
+            conflict: current.conflict,
+            pullBlocked: current.pullBlocked,
             publishReadiness: review.publishReadiness,
             records,
           };
           if (review.draftRevision !== undefined) card.revision = review.draftRevision;
-          if (status.draftOwner) card.draftOwner = { actor: status.draftOwner.actor };
+          if (current.draftOwner) card.draftOwner = { actor: current.draftOwner.actor };
           return card;
         }),
       );
     },
     async publish({ expectedRevision, actor, summary }) {
-      syncs();
       await engine(() =>
         host.run("publish", (db) =>
           db.publish({
@@ -354,15 +382,12 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
       );
     },
     async finishSend(expectedHead) {
-      syncs();
       await engine(() => host.run("finish-send", (db) => db.finishSend({ expectedHead })));
     },
     async discard(scope: DiscardScope, expectedRevision) {
-      syncs();
       await engine(() => host.run("discard", (db) => db.discard({ scope, expectedRevision })));
     },
     async pull() {
-      syncs();
       await engine(() => host.run("pull", (db) => db.pull()));
     },
     subscribe(listener: (event: StoreEvent) => void) {
@@ -375,6 +400,7 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
       host.stop();
     },
   };
+  return writes ? store : readOnly(store);
 }
 
 /** Engine errors keep their code, so the UI words them as the engine documents. */

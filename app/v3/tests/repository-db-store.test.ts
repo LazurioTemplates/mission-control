@@ -1,8 +1,10 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { gatewayRequest, TEST_ORIGIN } from "@lazurio/module-kit/tools/testing";
 import { toStableYaml } from "@lazurio/repository-db";
 import { createRepositoryDbStore } from "../src/data/repository-db-store.ts";
+import { createApi } from "../src/server/api.ts";
 import { storeContract } from "./store-contract.ts";
 import { colleagueClone, createFixtureRepo, git } from "./support/fixture-repo.ts";
 import { newPlan } from "./support/seed.ts";
@@ -152,6 +154,49 @@ describe("repository-db store", () => {
       stop();
       expect((await store.getPlan("EX-0004"))?.value.status).toBe("ready");
       expect(events).toContain("records-changed");
+    } finally {
+      store.close();
+      fixture.cleanup();
+    }
+  });
+
+  test("a copy that may not write never fetches or pulls, also through read requests", async () => {
+    const fixture = createFixtureRepo({ sample: true });
+    const store = createRepositoryDbStore({
+      mountRoot: fixture.mountRoot,
+      expect: { remote: fixture.origin, branch: "v3", within: fixture.moduleRoot },
+      intervalMs: 0,
+      sync: false,
+    });
+    try {
+      const colleague = colleagueClone(fixture);
+      writeFileSync(join(colleague, "colleague.txt"), "newer work\n");
+      git(colleague, ["add", "colleague.txt"]);
+      git(colleague, ["commit", "--quiet", "--message", "A colleague's newer work"]);
+      git(colleague, ["push", "--quiet"]);
+      const head = git(fixture.mountRoot, ["rev-parse", "HEAD"]);
+      const tracked = git(fixture.mountRoot, ["rev-parse", "origin/v3"]);
+      const handle = createApi(store, {
+        allowedOrigins: new Set([TEST_ORIGIN]),
+        access: () => ({ admitted: true, mayWrite: false }),
+      });
+      for (const path of ["/api/status", "/api/draft", "/api/check", "/api/plans", "/api/roadmaps"])
+        expect((await handle(gatewayRequest(path, { caller: { role: "admin" } }))).status).toBe(
+          200,
+        );
+      expect(git(fixture.mountRoot, ["rev-parse", "HEAD"])).toBe(head);
+      expect(git(fixture.mountRoot, ["rev-parse", "origin/v3"])).toBe(tracked);
+      expect(existsSync(join(fixture.mountRoot, "colleague.txt"))).toBe(false);
+      await expect(store.pull()).rejects.toMatchObject({ code: "data_read_only" });
+      const pull = await handle(
+        gatewayRequest("/api/draft/pull", {
+          caller: { role: "admin" },
+          origin: TEST_ORIGIN,
+          body: {},
+        }),
+      );
+      expect(pull.status).toBe(409);
+      expect(git(fixture.mountRoot, ["rev-parse", "origin/v3"])).toBe(tracked);
     } finally {
       store.close();
       fixture.cleanup();

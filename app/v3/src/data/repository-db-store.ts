@@ -49,6 +49,11 @@ export interface RepositoryDbStoreOptions {
   expect?: { remote: string; branch: string; within?: string };
   /** Background fetch cadence; `0` runs no timer (tests). */
   intervalMs?: number;
+  /**
+   * `false` for a copy that may not write (the one writer rule): it never
+   * fetches, pulls or publishes, not even when a read finds no status yet.
+   */
+  sync?: boolean;
 }
 
 interface FileRecord<T> {
@@ -86,7 +91,14 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
       return collectionRecord;
     },
   });
-  if ((options.intervalMs ?? 30_000) > 0) host.start();
+  const sync = options.sync ?? true;
+  if (sync && (options.intervalMs ?? 30_000) > 0) host.start();
+  // A copy that does not sync refuses every operation that would fetch, pull
+  // or publish, before it reaches the sync host.
+  const syncs = () => {
+    if (!sync)
+      throw new StoreError("data_read_only", "This copy does not change, pull or publish data.");
+  };
 
   /**
    * The checkout as the shared check of `files.ts` reads it, for the records,
@@ -293,7 +305,7 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
       // The host computes its status in the background; before the first
       // check (or without a timer) it is computed now.
       let status = host.status();
-      if (!status.sync) status = await host.refresh().catch(() => host.status());
+      if (!status.sync && sync) status = await host.refresh().catch(() => host.status());
       if (!status.available) {
         return {
           status: null,
@@ -329,6 +341,7 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
       );
     },
     async publish({ expectedRevision, actor, summary }) {
+      syncs();
       await engine(() =>
         host.run("publish", (db) =>
           db.publish({
@@ -341,12 +354,15 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
       );
     },
     async finishSend(expectedHead) {
+      syncs();
       await engine(() => host.run("finish-send", (db) => db.finishSend({ expectedHead })));
     },
     async discard(scope: DiscardScope, expectedRevision) {
+      syncs();
       await engine(() => host.run("discard", (db) => db.discard({ scope, expectedRevision })));
     },
     async pull() {
+      syncs();
       await engine(() => host.run("pull", (db) => db.pull()));
     },
     subscribe(listener: (event: StoreEvent) => void) {

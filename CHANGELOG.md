@@ -7,7 +7,9 @@ Standard `MS-19`), on the stack profile `app-data@2026.12`.
 
 ### For people
 
-- Nothing changes in how the App is used.
+- A copy that may not write says so at the top of every page and offers no
+  change: no new plan, no editing, no publish, pull or revert. A refused change
+  and a missing application role are explained in Czech and English.
 
 ### For whoever runs it
 
@@ -19,7 +21,8 @@ Standard `MS-19`), on the stack profile `app-data@2026.12`.
   only `LAZURIO_RUNTIME_DATA_WRITER=true` writes; any other value refuses every
   change with `data_read_only` before it reaches the store. Without the
   variable the App follows the module kit (the Module Standard keeps that case
-  open). A copy that may not write runs no sync of its own.
+  open). A copy that may not write never fetches, pulls or publishes, not even
+  on a read; `/api/status` tells the page `mayWrite` for the request.
 - Deep health: `/healthz` answers 503 until the data checkout is open, then 200.
 - Contract tests (`tests/application-contract.test.ts`) over the module kit's
   testing helpers.

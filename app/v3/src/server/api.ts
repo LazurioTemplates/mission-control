@@ -218,7 +218,7 @@ export function createApi(store: MissionControlStore, options: ApiOptions) {
     });
   }
 
-  async function route(req: Request, url: URL): Promise<Response> {
+  async function route(req: Request, url: URL, mayWrite: boolean): Promise<Response> {
     const { pathname } = url;
     const method = req.method;
     const plan = /^\/api\/plans\/([^/]+)$/.exec(pathname);
@@ -226,7 +226,9 @@ export function createApi(store: MissionControlStore, options: ApiOptions) {
     const code = decodeURIComponent((plan ?? roadmapMatch)?.[1] ?? "");
 
     if (pathname === "/api/status" && method === "GET") {
-      return json({ ...(await store.available()), locale: options.locale ?? null });
+      // The one writer rule for this request (Module Standard): the page
+      // offers changes only while `mayWrite` is true.
+      return json({ ...(await store.available()), locale: options.locale ?? null, mayWrite });
     }
     if (pathname === "/api/config" && method === "GET") return json(await store.config());
     if (pathname === "/api/plans" && method === "GET") return json(await store.listPlans());
@@ -287,7 +289,7 @@ export function createApi(store: MissionControlStore, options: ApiOptions) {
         409,
       );
     try {
-      return await route(req, url);
+      return await route(req, url, access.mayWrite);
     } catch (error) {
       return errorResponse(error);
     }

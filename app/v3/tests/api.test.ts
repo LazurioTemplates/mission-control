@@ -46,7 +46,7 @@ describe("HTTP API", () => {
       locale: "en",
     });
     const status = await (await english(new Request(`${ORIGIN}/api/status`))).json();
-    expect(status).toEqual({ ok: true, locale: "en" });
+    expect(status).toEqual({ ok: true, locale: "en", mayWrite: true });
     const { call } = setup();
     expect((await (await call("GET", "/api/status")).json()).locale).toBeNull();
   });

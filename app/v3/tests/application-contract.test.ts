@@ -75,6 +75,37 @@ describe("the Application's writer rule", () => {
   });
 });
 
+describe("the page learns the writer rule from /api/status", () => {
+  const mayWrite = async (env: Env, caller: GatewayCaller) => {
+    const response = await api(env)(gatewayRequest("/api/status", { caller }));
+    expect(response.status).toBe(200);
+    return (await response.json()).mayWrite as boolean;
+  };
+
+  for (const role of ["admin", "user"] as const) {
+    test(`an Application ${role} may write with the writer`, async () => {
+      expect(await mayWrite(hosted(true), { role })).toBe(true);
+    });
+    test(`an Application ${role} may not write without it`, async () => {
+      expect(await mayWrite(hosted(false), { role })).toBe(false);
+    });
+  }
+
+  test("without the variable, the Environment's own entry may write and the application may not", async () => {
+    const env = { ...hosted(), LAZURIO_RUNTIME_DATA_WRITER: undefined };
+    expect(await mayWrite(env, { role: "environment" })).toBe(true);
+    expect(await mayWrite(env, { role: "admin" })).toBe(false);
+  });
+
+  test("a request without a role learns nothing", async () => {
+    const response = await api(hosted(true))(
+      gatewayRequest("/api/status", { caller: { role: "none" } }),
+    );
+    expect(response.status).toBe(403);
+    expect((await response.json()).code).toBe("forbidden");
+  });
+});
+
 describe("who came", () => {
   test("a request through the gateway without a role gets nothing", async () => {
     const read = await api(hosted(true))(

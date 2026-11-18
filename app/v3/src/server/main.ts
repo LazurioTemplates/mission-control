@@ -22,7 +22,7 @@ await serve(
     createRepositoryDbStore({
       mountRoot: resolve(moduleRoot, "db"),
       expect: { ...dataRepository, within: moduleRoot },
-      ...(syncs ? {} : { intervalMs: 0 }),
+      sync: syncs,
     }),
   "v3",
 );

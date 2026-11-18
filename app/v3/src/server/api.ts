@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withOrigin } from "../data/origin.ts";
+import { channelOf, withOrigin } from "../data/origin.ts";
 import { type MissionControlStore, readOnly, StoreError } from "../data/store.ts";
 import { priority, status } from "../domain/common.ts";
 import {
@@ -130,6 +130,9 @@ function writeRefusal(req: Request, allowedOrigins: ReadonlySet<string>): Respon
   }
   return null;
 }
+
+/** The header in which a caller states the channel of its changes. */
+export const CHANNEL_HEADER = "x-lazurio-channel";
 
 export function createApi(store: MissionControlStore, options: ApiOptions) {
   const today = options.today ?? (() => new Date().toISOString().slice(0, 10));
@@ -308,8 +311,11 @@ export function createApi(store: MissionControlStore, options: ApiOptions) {
       );
     try {
       // Who made the change and by which channel (Module Standard, One data
-      // port): Mission Control writes through its interface.
-      return await withOrigin({ subject: access.subject ?? null, channel: "ui" }, () =>
+      // port): the channel as the caller states it in its header (the
+      // interface states `ui`); a request that states none is unknown, never
+      // guessed. The statement is the caller's, not a proof.
+      const channel = channelOf(req.headers.get(CHANNEL_HEADER));
+      return await withOrigin({ subject: access.subject ?? null, channel }, () =>
         route(req, url, access.mayWrite, access.mayWrite ? store : readOnly(store)),
       );
     } catch (error) {

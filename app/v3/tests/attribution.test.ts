@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { TEST_ORIGIN } from "@lazurio/module-kit/tools/testing";
 import { createRepositoryDbStore } from "../src/data/repository-db-store.ts";
-import { createApi } from "../src/server/api.ts";
+import { CHANNEL_HEADER, createApi } from "../src/server/api.ts";
 import { createFixtureRepo, git } from "./support/fixture-repo.ts";
 import { newPlan } from "./support/seed.ts";
 
@@ -38,11 +38,16 @@ function setup(subject: string | null) {
     access: () => ({ admitted: true, mayWrite: true, subject }),
     today: () => "2026-11-03",
   });
-  const call = (path: string, body: unknown) =>
+  // The interface states its channel; `stated: null` sends none.
+  const call = (path: string, body: unknown, stated: string | null = "ui") =>
     handle(
       new Request(`${TEST_ORIGIN}${path}`, {
         method: "POST",
-        headers: { "content-type": "application/json", origin: TEST_ORIGIN },
+        headers: {
+          "content-type": "application/json",
+          origin: TEST_ORIGIN,
+          ...(stated ? { [CHANNEL_HEADER]: stated } : {}),
+        },
         body: JSON.stringify(body),
       }),
     );
@@ -121,6 +126,23 @@ describe("author and channel", () => {
       });
       expect((await call("/api/plans", PLAN)).status).toBe(201);
       expect((await store.listPlans()).some((row) => row.value.title === PLAN.title)).toBe(true);
+    } finally {
+      store.close();
+      fixture.cleanup();
+    }
+  });
+
+  test("a request that states no channel is unknown, with the gateway's person", async () => {
+    const { fixture, store, call, origins } = setup("subject-4");
+    try {
+      expect((await call("/api/plans", PLAN, null)).status).toBe(201);
+      expect(await origins()).toEqual([
+        expect.objectContaining({
+          kind: "unknown",
+          actor: "subject-4",
+          source: "mission-control-v3",
+        }),
+      ]);
     } finally {
       store.close();
       fixture.cleanup();

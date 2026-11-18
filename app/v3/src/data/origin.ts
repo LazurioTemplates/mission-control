@@ -7,10 +7,18 @@ import { AsyncLocalStorage } from "node:async_hooks";
  */
 export type Channel = "ui" | "mcp" | "webmcp" | "import" | "cli";
 
+const CHANNELS: readonly Channel[] = ["ui", "mcp", "webmcp", "import", "cli"];
+
+/** The channel a request states in its header; null when it states none it knows. */
+export function channelOf(stated: string | null): Channel | null {
+  return CHANNELS.find((channel) => channel === stated) ?? null;
+}
+
 export interface Origin {
   /** The person's `subject`; null for a caller without one (a local entry), never invented. */
   subject: string | null;
-  channel: Channel;
+  /** The channel the caller stated; null when it stated none. */
+  channel: Channel | null;
 }
 
 const ORIGIN = new AsyncLocalStorage<Origin>();
@@ -27,11 +35,9 @@ export function attribution(app: string): {
   actor?: string;
 } {
   const origin = ORIGIN.getStore();
-  if (origin === undefined) return { kind: "unknown", source: app };
+  const actor = origin?.subject ? { actor: origin.subject } : {};
+  // A channel nobody stated is unknown, never guessed; the person stays.
+  if (!origin?.channel) return { kind: "unknown", source: app, ...actor };
   const agent = origin.channel === "mcp" || origin.channel === "webmcp" || origin.channel === "cli";
-  return {
-    kind: agent ? "agent" : "app",
-    source: `${app}/${origin.channel}`,
-    ...(origin.subject ? { actor: origin.subject } : {}),
-  };
+  return { kind: agent ? "agent" : "app", source: `${app}/${origin.channel}`, ...actor };
 }

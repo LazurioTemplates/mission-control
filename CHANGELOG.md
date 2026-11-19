@@ -4,9 +4,10 @@
 
 ### For people
 
-- On a phone the plan list is readable: a title keeps room for a few words a
-  line and the table scrolls sideways, instead of the title and the owner
-  running down letter by letter.
+- On a phone the plan list is readable: a title and an owner keep room for a
+  few words a line and the table scrolls sideways, instead of running down
+  letter by letter. A long value without spaces still wraps inside its column
+  and never widens the table.
 - A link to another page opens it at its top, not at the height the previous
   page was scrolled to (a new plan opened half way down its detail). A filter
   of the plan list keeps the place.

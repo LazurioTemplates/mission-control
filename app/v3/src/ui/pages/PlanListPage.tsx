@@ -78,7 +78,7 @@ export function PlanListPage({ data, status }: { data: MissionData; status: Stat
                   <td>
                     <PriorityChip priority={value.priority} />
                   </td>
-                  <td>{value.owner}</td>
+                  <td className="owner-cell">{value.owner}</td>
                   <td className="muted nowrap">{formatDate(locale, value.updated_at)}</td>
                 </tr>
               ))}

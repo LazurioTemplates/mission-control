@@ -370,11 +370,6 @@ h3 {
 }
 
 .table {
-  /* `anywhere` from .content-area would let a column shrink to one letter on
-     a phone (the title running down letter by letter). `break-word` sizes the
-     columns by whole words and the table scrolls sideways in .table-scroll;
-     a word longer than its column still breaks. */
-  overflow-wrap: break-word;
   width: 100%;
   border-collapse: collapse;
   background: var(--cac-surface, #fff);
@@ -667,9 +662,17 @@ textarea {
   overflow-x: auto;
 }
 
-/* A title keeps room for a few words a line on a phone. */
+/* The table inherits `overflow-wrap: anywhere` from .content-area, so even a
+   value without spaces wraps inside its column and never widens the table.
+   It also lets a column shrink to one letter on a phone; these widths keep a
+   title and an owner readable, and the table scrolls sideways in
+   .table-scroll when the phone is narrower than them. */
 .table .title-cell {
   min-width: 11rem;
+}
+
+.table .owner-cell {
+  min-width: 7rem;
 }
 
 .nowrap,

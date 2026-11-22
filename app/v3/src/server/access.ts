@@ -25,9 +25,9 @@ export interface RequestAccess {
  * copy (`copyWrites`) and then the module kit's `dataWriter` (Module Standard,
  * Applications of an Organization); the case without
  * `LAZURIO_RUNTIME_DATA_WRITER` is the standard's open point, and the App
- * follows the module kit there. module-kit 0.4.0's `dataWriter` alone lets a
- * local or Environment entry write also in a runtime stating production,
- * which the standard forbids, so `copyWrites` comes first.
+ * follows the module kit there. Since module-kit 0.4.1 `dataWriter` itself
+ * never writes in a runtime stating production without the variable;
+ * `copyWrites` states the same rule in the App and comes first.
  */
 export function accessOf(request: Request, env: Env = process.env): RequestAccess {
   const access = appAccess(request, LISTENER, env);

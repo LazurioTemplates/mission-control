@@ -80,22 +80,27 @@ const admin = { role: "admin" } as const;
 describe("tools for agents", () => {
   test("an application user and an application admin see the reading and the writing tools while the App writes", async () => {
     const { tools } = setup(hosted(true));
-    const expected = [...READ_TOOLS, ...WRITE_TOOLS].sort();
+    const expected = [...READ_TOOLS, ...WRITE_TOOLS, "publish_draft"].sort();
     expect(await mcpToolNames(tools, user)).toEqual(expected);
     expect(await mcpToolNames(tools, admin)).toEqual(expected);
   });
 
-  test("a production application offers no publication; a person publishes in the interface", async () => {
+  test("a production application that writes offers publish_draft as a destructive tool of its own (module-kit 0.6.0)", async () => {
     const { tools } = setup(hosted(true));
-    expect(await mcpToolNames(tools, admin)).not.toContain("publish_draft");
-    const { isError, structured } = await mcpTool(
-      tools,
-      "publish_draft",
-      { expectedRevision: "any" },
-      admin,
+    expect(await mcpToolNames(tools, admin)).toEqual(
+      [...READ_TOOLS, ...WRITE_TOOLS, "publish_draft"].sort(),
     );
-    expect(isError).toBe(true);
-    expect(structured.reason).toBe("forbidden");
+    const { body } = await mcpCall(tools, "tools/list", {}, { caller: admin });
+    const listed = (body.result as { tools: Array<{ name: string; annotations: object }> }).tools;
+    expect(listed.find((tool) => tool.name === "publish_draft")?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
+  });
+
+  test("a production copy that may not write offers no publication", async () => {
+    const { tools } = setup(hosted(false));
+    expect(await mcpToolNames(tools, admin)).not.toContain("publish_draft");
   });
 
   test("a Module version in an Environment offers publish_draft as a tool of its own", async () => {

@@ -29,8 +29,8 @@ import { CHANNEL_HEADER, discardInput, newPlanInput, publishInput, saveInput } f
  * Saving is a draft (`write`). Publishing the draft is a Publication into the
  * Organization's data and a tool of its own, `publish_draft`
  * (`effect: "publish"`): an agent calls it only on the person's explicit
- * "Publikuj", and module-kit 0.5.0 does not offer it in a production
- * application at all. Finishing a send and taking colleagues' work (`pull`)
+ * "Publikuj"; module-kit 0.6.0 offers it wherever the App may write, a
+ * production application included. Finishing a send and taking colleagues' work (`pull`)
  * stay the Draft page's buttons.
  */
 

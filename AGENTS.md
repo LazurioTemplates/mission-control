@@ -76,9 +76,9 @@ on `/mcp` of the Application, or the same tools as WebMCP in the Environment
 browser. On the Environment's own copy the HTTP API on its loopback address
 works too. Never edit the files of `db/`. Saves are drafts; publishing the
 draft is a Publication into the Organization's data, only on the person's
-explicit instruction. `publish_draft` is its own tool, and a production
-application does not offer it to agents (module-kit 0.5.0): there a person
-publishes on the Draft page. Finishing a send and taking colleagues' work
+explicit instruction. `publish_draft` is its own tool, offered wherever the
+App may write, in a production application too (module-kit 0.6.0).
+Finishing a send and taking colleagues' work
 stay that page's buttons.
 
 ## Before a pull request

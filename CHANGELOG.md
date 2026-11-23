@@ -4,12 +4,12 @@
 
 ### For whoever runs it
 
-- The stack profile release `app-data@2027.01`: `@lazurio/module-kit` v0.5.0
+- The stack profile release `app-data@2027.02`: `@lazurio/module-kit` v0.6.0
   instead of v0.4.0. A runtime that states production never writes without
-  `LAZURIO_RUNTIME_DATA_WRITER=true` (module-kit 0.4.1). module-kit 0.5.0
-  still offers an agent no publication tool in a production application; a
-  later kit release lifts that. This template's `publish_draft` (below)
-  follows the kit there.
+  `LAZURIO_RUNTIME_DATA_WRITER=true` (module-kit 0.4.1). module-kit 0.6.0
+  offers publication tools in a production application too (decision D1 of
+  LZD-0037) and records each call's `effect` in the audit, so this template's
+  `publish_draft` (below) is offered wherever the App may write.
   Nothing in an adopted copy's own files changes; take it by merging the tag.
 
 ### For agents
@@ -26,8 +26,8 @@
   copy that may not write lists only the reading tools.
 - `publish_draft` publishes the draft as a tool of its own
   (`effect: "publish"`, `destructiveHint`), only on the person's explicit
-  "Publikuj". A Module version in an Environment offers it; a production
-  application does not (module-kit 0.5.0). Finishing a send and taking
+  "Publikuj". It is offered wherever the App may write, in a production
+  application too (module-kit 0.6.0). Finishing a send and taking
   colleagues' work are no tools.
 - Skills in `.agents/skills/` (the same files in `.claude/skills/`):
   `create-plan`, `check-plans` and `publish-plan-changes`.

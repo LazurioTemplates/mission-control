@@ -16,11 +16,10 @@ everything and stop.
 
 Use the App's tools for agents as in the skill `create-plan`.
 
-- `publish_draft` is a tool of its own, offered only where the App lets an
-  agent publish: a Module version in an Environment that writes. A production
-  application does not offer it to agents (module-kit 0.5.0): there the person
-  publishes on the Draft page ("Koncept a publikace" / "Draft and publish").
-  Say so and stop.
+- `publish_draft` is a tool of its own, offered wherever the App may write,
+  in a production application too (module-kit 0.6.0). When it is not in the
+  list, this copy may not write: the person publishes on the Draft page
+  ("Koncept a publikace" / "Draft and publish"). Say so and stop.
 - `get_app_context` with `can_write: false` means this copy changes nothing,
   publication included.
 - Never publish by editing the files of `db/` or running Git on them: the

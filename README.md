@@ -44,8 +44,9 @@ app/v3/src/
   data/     the storage port (store.ts), its repository-db implementation and a memory one;
             files.ts reads and checks records for the App and the data repository alike
   i18n/     the Czech and English texts of the interface
-  server/   Bun.serve: the HTTP API over the port, health, the client
-  ui/       React; talks only to the HTTP API
+  server/   Bun.serve: the HTTP API over the port, the tools for agents (/mcp and the page),
+            health, the client
+  ui/       React; talks only to the HTTP API and registers the tools for agents (WebMCP)
   cli/      validate, schema and check bundle export
 app/v3/tests/store-contract.ts   the shared test suite every store implementation passes
 templates/data-repo/             the data repository an adopting Organization starts from
@@ -110,6 +111,19 @@ person's language without a new release once Lazurio relays the document.
 The example records exist in both languages (`templates/sample-data/cs/`,
 `templates/sample-data/en/`): the same codes, states, dates and people, so
 the screenshots of both languages show the same views.
+
+## Agents
+
+`AGENTS.md` holds the rules. The procedures live as skills in
+`.agents/skills/` (and the same files in `.claude/skills/`): creating a plan
+from a person's description, checking the plans and publishing the draft on
+the person's instruction. The App offers its main actions as tools for
+agents (`list_plans`, `get_plan`, `create_plan`, `save_plan`, `check_plans`,
+`get_draft` and more), defined once on its server: on `/mcp` of the
+Application and as WebMCP tools in the Environment browser. They list only
+what the person's role and the writer mode allow. Saving is a draft;
+`publish_draft` is a tool of its own, offered in an Environment and not in a
+production application, where a person publishes on the Draft page.
 
 ## Adopt it
 

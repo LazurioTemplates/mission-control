@@ -32,6 +32,18 @@ release with a security fix.
   `tests/store-contract.ts`. The server and the UI call only the port.
 - **A new page** is a React component in `app/v3/src/ui/pages/` and a route in
   `routes.ts`; it calls only the HTTP API (`app/v3/src/ui/api.ts`).
+- **A tool for agents** for what people and agents do often is defined once
+  on the server, in `app/v3/src/server/agent-tools.ts`
+  (`@lazurio/module-kit/tools`): its input is the API's own Zod schema, it
+  calls the same HTTP API and is offered on `/mcp` and to the page
+  (`/api/agent-tools`, registered by `app/v3/src/ui/webmcp.ts`). Its
+  description is a text of both catalogs (`tools` in
+  `app/v3/src/i18n/messages.ts`). A draft is `effect: "write"`; a
+  publication is a tool of its own with `effect: "publish"`, never a mode of
+  another tool. Cover it in `tests/agent-tools.test.ts`.
+- **A procedure for agents** (how to work with the plans) is a skill in
+  `.agents/skills/<name>/SKILL.md` with the same file in `.claude/skills/`;
+  it works through the tools and the HTTP API, never the files of `db/`.
 - **Look and feel.** `app/v3/src/instance/` is the Organization's overlay:
   `brand.ts` and `theme.css` (which may omit the grid layer). Keep shared
   styling in `src/ui/styles.css` and `src/design-system/`.

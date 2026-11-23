@@ -440,6 +440,35 @@ const cs = {
         `Soubor nebo adresář nejde přečíst (${p.detail}), takže ho kontrola nemohla projít.`,
     } satisfies Record<RuleIssueCode, (params: Params) => string>,
   },
+  /**
+   * The descriptions of the tools for agents (`server/agent-tools.ts`), in
+   * the language the server speaks. Tool names, fields and codes stay as
+   * they are.
+   */
+  tools: {
+    list_plans:
+      "Vypíše všechny plány Mission Control v pracovním pořadí (priority_rank, potom kód), i se změnami konceptu. Každá položka má záznam (value) a jeho revizi (revision), kterou potřebuje save_plan.",
+    get_plan:
+      "Vrátí jeden plán podle kódu (třeba EX-0007): záznam (value) a jeho revizi (revision) pro save_plan. Neznámý kód odmítne s not_found.",
+    list_roadmaps:
+      "Vypíše všechny roadmapy s prioritami, kroky a jejich stavem, i se změnami konceptu. Každá položka má záznam (value) a revizi (revision) pro save_roadmap.",
+    get_roadmap:
+      "Vrátí jednu roadmapu podle kódu (třeba RM-0001): záznam (value) a jeho revizi (revision) pro save_roadmap.",
+    check_plans:
+      "Zkontroluje data, jak teď stojí i s konceptem: záznamy, které neodpovídají schématu, a porušená pravidla mezi záznamy (každý nález má kód, soubor a parametry). Prázdný seznam znamená, že je všechno v pořádku. Nic nemění.",
+    get_draft:
+      "Vrátí koncept: jeho stav, změněné záznamy s popisem změn po polích (technicalPath pro discard_draft) a revizi konceptu (revision), kterou potřebují publish_draft a discard_draft. Nic nemění.",
+    create_plan:
+      "Založí nový plán jako koncept. Kód s prefixem Organizace přidělí Mission Control; vrátí uložený plán a jeho revizi. Nic nepublikuje: koncept zkontroluje a publikuje člověk.",
+    save_plan:
+      "Uloží celý upravený plán jako koncept. record je úplný záznam z get_plan se změnami, baseRevision revize, ze které vychází; plán, který se mezitím změnil, odmítne s record_changed. Nový plán zakládá create_plan. Nic nepublikuje.",
+    save_roadmap:
+      "Uloží celou upravenou roadmapu jako koncept. record je úplný záznam z get_roadmap se změnami, baseRevision revize, ze které vychází; roadmapu, která se mezitím změnila, odmítne s record_changed. Nic nepublikuje.",
+    discard_draft:
+      'Zahodí změny konceptu: celý koncept (scope {kind: "draft"}) nebo jeden záznam (scope {kind: "record", path: technicalPath z get_draft}). expectedRevision je revize konceptu z get_draft; změněný koncept odmítne s draft_changed. Zahozené změny nejdou vrátit, proto ho volej jen na pokyn člověka.',
+    publish_draft:
+      "Publikuje celý koncept do dat Organizace jako jednu změnu, kterou uvidí kolegové i agenti. Je to Publikace: volej ho jen na výslovný pokyn člověka „Publikuj“, potom co viděl změny z get_draft. expectedRevision je revize konceptu z get_draft; změněný koncept odmítne s draft_changed. summary je volitelný popis změny.",
+  },
 };
 
 export type Messages = typeof cs;
@@ -815,6 +844,30 @@ const en: Messages = {
       read_failed: (p) =>
         `The file or directory cannot be read (${p.detail}), so the check could not cover it.`,
     },
+  },
+  tools: {
+    list_plans:
+      "Lists every Mission Control plan in working order (priority_rank, then code), draft changes included. Each item holds the record (value) and its revision, which save_plan needs.",
+    get_plan:
+      "Returns one plan by its code (such as EX-0007): the record (value) and its revision for save_plan. An unknown code is refused with not_found.",
+    list_roadmaps:
+      "Lists every roadmap with its priorities, steps and their state, draft changes included. Each item holds the record (value) and its revision for save_roadmap.",
+    get_roadmap:
+      "Returns one roadmap by its code (such as RM-0001): the record (value) and its revision for save_roadmap.",
+    check_plans:
+      "Checks the data as they stand, draft included: records that do not match their schema and broken rules across records (each finding has a code, a file and parameters). An empty list means everything is valid. Changes nothing.",
+    get_draft:
+      "Returns the draft: its state, the changed records with their changes field by field (technicalPath for discard_draft) and the draft's revision, which publish_draft and discard_draft need. Changes nothing.",
+    create_plan:
+      "Creates a new plan as a draft. Mission Control gives it the next code with the Organization's prefix; returns the saved plan and its revision. Publishes nothing: a person reviews and publishes the draft.",
+    save_plan:
+      "Saves a whole edited plan as a draft. record is the complete record from get_plan with the changes, baseRevision the revision it was edited from; a plan that changed in the meantime is refused with record_changed. A new plan is create_plan. Publishes nothing.",
+    save_roadmap:
+      "Saves a whole edited roadmap as a draft. record is the complete record from get_roadmap with the changes, baseRevision the revision it was edited from; a roadmap that changed in the meantime is refused with record_changed. Publishes nothing.",
+    discard_draft:
+      'Discards draft changes: the whole draft (scope {kind: "draft"}) or one record (scope {kind: "record", path: technicalPath from get_draft}). expectedRevision is the draft\'s revision from get_draft; a changed draft is refused with draft_changed. Discarded changes cannot be restored, so call it only on the person\'s instruction.',
+    publish_draft:
+      "Publishes the whole draft into the Organization's data as one change that colleagues and agents see. It is a Publication: call it only on the person's explicit \"Publikuj\" (publish), after they saw the changes from get_draft. expectedRevision is the draft's revision from get_draft; a changed draft is refused with draft_changed. summary is an optional description of the change.",
   },
 };
 

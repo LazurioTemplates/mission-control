@@ -8,8 +8,29 @@
   instead of v0.4.0. A runtime that states production never writes without
   `LAZURIO_RUNTIME_DATA_WRITER=true` (module-kit 0.4.1). module-kit 0.5.0
   still offers an agent no publication tool in a production application; a
-  later kit release lifts that. This template offers none.
+  later kit release lifts that. This template's `publish_draft` (below)
+  follows the kit there.
   Nothing in an adopted copy's own files changes; take it by merging the tag.
+
+### For agents
+
+- Tools for agents, defined once on the server
+  (`app/v3/src/server/agent-tools.ts`, `@lazurio/module-kit/tools`) and
+  offered on `/mcp` of the Application and to the page (`/api/agent-tools`,
+  registered by `@lazurio/module-kit/webmcp`): `list_plans`, `get_plan`,
+  `list_roadmaps`, `get_roadmap`, `check_plans` and `get_draft` read;
+  `create_plan`, `save_plan`, `save_roadmap` and `discard_draft` save or
+  return a draft. Each calls the App's own HTTP API with the API's own input
+  schemas, so the application role, the writer rule and the revision decide
+  as for a click, and every change records the channel `mcp` or `webmcp`. A
+  copy that may not write lists only the reading tools.
+- `publish_draft` publishes the draft as a tool of its own
+  (`effect: "publish"`, `destructiveHint`), only on the person's explicit
+  "Publikuj". A Module version in an Environment offers it; a production
+  application does not (module-kit 0.5.0). Finishing a send and taking
+  colleagues' work are no tools.
+- Skills in `.agents/skills/` (the same files in `.claude/skills/`):
+  `create-plan`, `check-plans` and `publish-plan-changes`.
 
 ## 4.2.1 — 2026-11-19
 

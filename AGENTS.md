@@ -63,6 +63,24 @@ rights of its people, not this repository's maintainers.
   the domain return stable codes with English messages for agents; the UI
   words the codes. One screen shows one language.
 
+## Working with an Organization's plans
+
+Use the skills in `.agents/skills/` (the same files in `.claude/skills/`):
+
+- `create-plan`: create a plan from what a person wants to change and why;
+- `check-plans`: check the plans and roadmaps, draft included;
+- `publish-plan-changes`: publish the draft, only on the person's "Publikuj".
+
+Work through the App's tools for agents (`app/v3/src/server/agent-tools.ts`):
+on `/mcp` of the Application, or the same tools as WebMCP in the Environment
+browser. On the Environment's own copy the HTTP API on its loopback address
+works too. Never edit the files of `db/`. Saves are drafts; publishing the
+draft is a Publication into the Organization's data, only on the person's
+explicit instruction. `publish_draft` is its own tool, and a production
+application does not offer it to agents (module-kit 0.5.0): there a person
+publishes on the Draft page. Finishing a send and taking colleagues' work
+stay that page's buttons.
+
 ## Before a pull request
 
 - `cd app/v3 && bun install --frozen-lockfile && bun run check && bun run build`.

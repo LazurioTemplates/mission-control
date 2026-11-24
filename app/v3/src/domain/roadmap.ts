@@ -9,6 +9,7 @@ import {
   status,
   taskId,
   text,
+  writeRevision,
 } from "./common.ts";
 
 /**
@@ -135,6 +136,7 @@ export const roadmap = z.strictObject({
       ]),
     )
     .optional(),
+  revision: writeRevision.optional(),
 });
 
 export type Roadmap = z.infer<typeof roadmap>;

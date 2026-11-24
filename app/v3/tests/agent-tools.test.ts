@@ -199,6 +199,37 @@ describe("tools for agents", () => {
     expect(await store.getPlan("EX-0005")).toBeNull();
   });
 
+  test("save_plan with a revision from before A → B → A ends with record_changed, on /mcp and on the page", async () => {
+    const { tools } = setup(hosted(true));
+    type Saved = { value: Record<string, unknown>; revision: string };
+    const found = (await mcpTool(tools, "get_plan", { code: "EX-0003" }, user)).structured as Saved;
+    const a = found.value;
+    const b = await mcpTool(
+      tools,
+      "save_plan",
+      { code: "EX-0003", record: { ...a, status: "in_progress" }, baseRevision: found.revision },
+      user,
+    );
+    expect(b.isError).toBe(false);
+    const back = await pageTool(
+      tools,
+      "save_plan",
+      { code: "EX-0003", record: a, baseRevision: (b.structured as Saved).revision },
+      user,
+    );
+    expect(back.status).toBe(200);
+    expect(back.body.ok).toBe(true);
+    const edit = { code: "EX-0003", record: { ...a, owner: "samtaylor" } };
+    for (const baseRevision of [found.revision, (b.structured as Saved).revision]) {
+      expect(await mcpTool(tools, "save_plan", { ...edit, baseRevision }, user)).toMatchObject({
+        isError: true,
+        structured: { reason: "record_changed" },
+      });
+      const page = await pageTool(tools, "save_plan", { ...edit, baseRevision }, user);
+      expect(page.body).toMatchObject({ ok: false, reason: "record_changed" });
+    }
+  });
+
   test("a saved roadmap keeps its code and refuses another one", async () => {
     const { tools } = setup(hosted(true));
     const found = await mcpTool(tools, "get_roadmap", { code: "RM-0001" }, user);

@@ -11,6 +11,28 @@
   LZD-0037) and records each call's `effect` in the audit, so this template's
   `publish_draft` (below) is offered wherever the App may write.
   Nothing in an adopted copy's own files changes; take it by merging the tag.
+- `@lazurio/repository-db` v3.4.0 instead of v3.2.6, and a revision that is
+  new for every write (Module Standard, One data port). Before, a record's
+  revision was a fingerprint of its content alone, so after A → B → A an
+  editor still holding the revision of the first A saved over B's history
+  unnoticed. Now every write of a plan or roadmap, in both stores, stores a
+  new `crypto.randomUUID()` in the record's top-level `revision` field, and
+  the port's revision is that value with the fingerprint of the content
+  (`portRevision`). A save with a revision from before A → B → A, or one made
+  before a direct edit of the file that kept the old `revision`, ends with
+  `record_changed`. The draft's review does not show `revision` as a changed
+  field.
+- The plan and roadmap schemas (Zod, `templates/data-repo/schemas/*.schema.json`
+  and the check bundle) accept `revision` as an optional string. An
+  Organization's data repository takes the regenerated `schemas/` and
+  `scripts/mission-control-check.js` in its own pull request before the App
+  saves with this version: the previous bundle refuses a record with
+  `revision`, so a publish would stop on `validation_failed`.
+- Plans and roadmaps are flat records, not repository-db's `{ id, record }`
+  envelope, so 3.4.0's merge of `record.revision` as audit metadata does not
+  apply to them: two colleagues' concurrent saves of the same record now stop
+  on a publish conflict (`/revision`), also when they changed different
+  fields. Saves of different records are not affected.
 
 ### For agents
 
@@ -43,7 +65,9 @@
   previous refresh, and keeps the page working when the server's tool list
   does not answer.
 - Skills in `.agents/skills/` (the same files in `.claude/skills/`):
-  `create-plan`, `check-plans` and `publish-plan-changes`.
+  `create-plan`, `check-plans` and `publish-plan-changes`. `create-plan` and
+  `check-plans` say that `baseRevision` is the `revision` beside the record,
+  not the record's own `revision` field, which the App replaces.
 
 ## 4.2.1 — 2026-11-19
 

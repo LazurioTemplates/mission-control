@@ -41,7 +41,10 @@ rights of its people, not this repository's maintainers.
 - `app/v3/src/data/repository-db-store.ts` implements it with
   `@lazurio/repository-db`: reads through `host.read` with the shared reader
   of `files.ts`, writes through `host.run` and `writeRecordDraft` with the
-  base revision and `assertDataPath`. Never run Git on the data checkout,
+  base revision and `assertDataPath`. Every write of a plan or roadmap, in
+  every store, stores a new `randomUUID()` in the record's `revision` field;
+  the port's revision is that value with a fingerprint of the content
+  (`portRevision` in `records.ts`), never the content alone. Never run Git on the data checkout,
   never keep a second write queue, poll loop or conflict state.
 - `app/v3/tests/store-contract.ts` is the shared suite of the port. A change
   of the port's behaviour changes the suite, and every implementation passes it.

@@ -116,6 +116,43 @@ export function storeContract(
       expect(await refusal(() => store.savePlan(newPlan("EX-0001"), null))).toBe("record_changed");
     });
 
+    test("every write gets a new revision, also after A → B → A", async () => {
+      const opened = await store.getPlan("EX-0003");
+      if (!opened) throw new Error("EX-0003 missing");
+      const a = opened.value;
+      const b = await store.savePlan({ ...a, status: "in_progress" }, opened.revision);
+      const again = await store.savePlan(a, b.revision);
+      // The content is A again, the revision is not the one A had.
+      const { revision: _first, ...content } = a;
+      const { revision: _last, ...back } = again.value;
+      expect(back).toEqual(content);
+      expect(new Set([opened.revision, b.revision, again.revision]).size).toBe(3);
+      expect((await store.getPlan("EX-0003"))?.revision).toBe(again.revision);
+      // Every write stored a new random write revision in the record.
+      const writes = [b.value.revision, again.value.revision];
+      for (const value of writes) expect(value).toMatch(/^[0-9a-f-]{36}$/);
+      expect(new Set([a.revision, ...writes]).size).toBe(3);
+      // An editor holding a revision from before A → B → A is refused.
+      for (const stale of [opened.revision, b.revision]) {
+        expect(await refusal(() => store.savePlan({ ...a, owner: "samtaylor" }, stale))).toBe(
+          "record_changed",
+        );
+      }
+      expect((await store.getPlan("EX-0003"))?.value.owner).toBe(a.owner);
+
+      const roadmap = await store.getRoadmap("RM-0001");
+      if (!roadmap) throw new Error("RM-0001 missing");
+      const changed = await store.saveRoadmap(
+        { ...roadmap.value, summary: "A new summary." },
+        roadmap.revision,
+      );
+      const restored = await store.saveRoadmap(roadmap.value, changed.revision);
+      expect(new Set([roadmap.revision, changed.revision, restored.revision]).size).toBe(3);
+      expect(await refusal(() => store.saveRoadmap(roadmap.value, roadmap.revision))).toBe(
+        "record_changed",
+      );
+    });
+
     test("refuses a record that breaks its schema or a rule across records", async () => {
       expect(await refusal(() => store.savePlan({ ...newPlan(), title: "" }, null))).toBe(
         "invalid_record",

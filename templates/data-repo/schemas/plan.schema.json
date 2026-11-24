@@ -477,6 +477,11 @@
         ],
         "additionalProperties": false
       }
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Write revision: a new random value stored by every write of the record. Leave it as read; the App replaces it."
     }
   },
   "required": [

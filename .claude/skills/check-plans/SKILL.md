@@ -39,8 +39,9 @@ not paste the raw JSON.
 
 When the person asks you to fix a finding, read the record (`get_plan`,
 `get_roadmap`), change only what the finding needs, show the change and save
-it with `save_plan` or `save_roadmap` (the whole record and its `revision` as
-`baseRevision`). Run the check again. A finding you cannot fix without a
+it with `save_plan` or `save_roadmap` (the whole record and the `revision`
+beside it as `baseRevision`, not the record's own `revision` field). Run the
+check again. A finding you cannot fix without a
 decision (which plan a step means, who owns a plan) is the person's: ask.
 
 ## 4. Never publish here

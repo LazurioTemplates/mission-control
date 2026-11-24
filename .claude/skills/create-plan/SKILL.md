@@ -73,7 +73,9 @@ curl -sS -X POST "http://127.0.0.1:<port>/api/plans" \
 - Scope, decisions, risks and proposed tasks are fields of the plan record:
   add them afterwards with `get_plan` and `save_plan` (the whole record and
   the `revision` you read as `baseRevision`; `record_changed` means someone
-  saved it in between: read it again and redo the change).
+  saved it in between: read it again and redo the change). `baseRevision` is
+  the `revision` beside the record, not the record's own `revision` field,
+  which the App replaces on every save; leave that field as you read it.
 
 ## 5. Hand over
 

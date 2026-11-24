@@ -3,7 +3,7 @@
 Mission Control keeps no data in this repository. Each Organization keeps its
 plans and roadmaps in its own data repository, `<Organization>/mission-control-data`,
 on branch `v3`, checked out as `db/` at the Module root and managed by
-[repository-db](https://github.com/Lazurio/repository-db) v3.2.6.
+[repository-db](https://github.com/Lazurio/repository-db) v3.4.0.
 
 ## Records
 
@@ -18,6 +18,33 @@ repository already has, so the App reads existing data repositories unchanged.
 A new record gets its folder from its `created_at` and its file name from its
 code and title; an edited record keeps its file. The engine writes stable
 YAML (sorted keys), so the first edit of an older record reorders its keys once.
+
+### Revisions
+
+A save names the revision of the record it was edited from and is refused
+with `record_changed` when the record changed since. The revision is new for
+every write, never derived from the content alone and never a counter
+(Module Standard, "One data port"):
+
+- Every write of a plan or roadmap stores a new random value
+  (`crypto.randomUUID()`) in the record's top-level `revision` field. The
+  App replaces whatever value the caller sent; a direct writer of the data
+  does the same.
+- The revision the App hands out and compares is that value together with a
+  fingerprint of the record's file (`portRevision` in
+  `app/v3/src/data/records.ts`). After A → B → A the content repeats but the
+  write revision does not, and a direct change of the file that kept the old
+  write revision still changes the fingerprint.
+- `revision` is optional in the schema: the example records and records
+  written before it have none, and their revision is the fingerprint alone
+  until their first save. The draft's review leaves the field out of the
+  changed fields.
+- Plans and roadmaps are flat records, not repository-db's `{ id, record,
+  schemaVersion }` envelope. repository-db 3.4.0 treats `record.revision` as
+  audit metadata when it merges concurrent changes; for a flat record,
+  `revision` is an ordinary field, so two colleagues' concurrent saves of the
+  same record, each with its own write revision, are a conflict on
+  `/revision` to resolve, even when they changed different fields.
 
 ### Rules across records
 

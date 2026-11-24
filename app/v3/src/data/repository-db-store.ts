@@ -31,7 +31,14 @@ import {
   ruleInputOf,
 } from "./files.ts";
 import { attribution } from "./origin.ts";
-import { assertRulesFor, parsePlan, parseRoadmap, recordFileName } from "./records.ts";
+import {
+  assertRulesFor,
+  parsePlan,
+  parseRoadmap,
+  portRevision,
+  recordFileName,
+  withNewRevision,
+} from "./records.ts";
 import { reviewAdapter } from "./review-adapter.ts";
 import type {
   DiscardScope,
@@ -65,7 +72,10 @@ export interface RepositoryDbStoreOptions {
 interface FileRecord<T> {
   path: string;
   value: T;
+  /** The port's revision: the record's write revision and its file's fingerprint. */
   revision: Revision;
+  /** The engine's revision of the file as read, which `writeRecordDraft` checks under its gate. */
+  fileRevision: string;
 }
 
 interface Snapshot {
@@ -183,7 +193,8 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
   const reader = directoryReader(mountRoot);
   const pathsOf = (db: RepositoryDb) => missionControlPaths(db.config.layout.data);
 
-  const revisionOf = (text: string): Revision => recordRevisionFromBytes(Buffer.from(text, "utf8"));
+  const fileRevisionOf = (text: string): string =>
+    recordRevisionFromBytes(Buffer.from(text, "utf8"));
 
   /**
    * Every record of the checkout, read and parsed by the same code as the
@@ -212,11 +223,18 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
       );
     }
     const texts = new Map([...plans, ...roadmaps].map((file) => [file.path, file.text]));
-    const stored = <T>(entry: { path: string; value: T }): FileRecord<T> => ({
-      path: entry.path,
-      value: entry.value,
-      revision: revisionOf(texts.get(entry.path) ?? ""),
-    });
+    const stored = <T extends { revision?: string }>(entry: {
+      path: string;
+      value: T;
+    }): FileRecord<T> => {
+      const fileRevision = fileRevisionOf(texts.get(entry.path) ?? "");
+      return {
+        path: entry.path,
+        value: entry.value,
+        revision: portRevision(entry.value.revision, fileRevision),
+        fileRevision,
+      };
+    };
     return {
       config: parsed.config,
       plans: parsed.plans.map(stored).sort((left, right) => comparePlans(left.value, right.value)),
@@ -234,16 +252,22 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
       roadmaps: data.roadmaps.map((entry) => ({ ...entry, fileName: posix.basename(entry.path) })),
     });
 
-  function writeRecord<T>(
+  /**
+   * Write one record whose value carries its new write revision. The engine
+   * checks under its draft write gate that the file is still the one the
+   * snapshot read (`fileRevision`, `null` for a new record), so a change made
+   * between the snapshot and the write is refused too.
+   */
+  function writeRecord<T extends { revision?: string }>(
     db: RepositoryDb,
     path: string,
     value: T,
-    baseRevision: Revision | null,
+    fileRevision: string | null,
     origin: ReturnType<typeof attribution>,
   ): Revision {
     const text = toStableYaml(value);
     const absolute = assertDataPath(mountRoot, path);
-    writeRecordDraft(mountRoot, absolute, { baseRevision }, () => {
+    writeRecordDraft(mountRoot, absolute, { baseRevision: fileRevision }, () => {
       writeFileAtomic(assertDataPath(mountRoot, path), text);
       // Where the change came from: a hint that informs and never gates,
       // recorded still under the draft write gate so a later writer's hint
@@ -254,10 +278,10 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
         // The record is saved; only its origin hint is missing.
       }
     });
-    return recordRevisionFromBytes(Buffer.from(text, "utf8"));
+    return portRevision(value.revision, fileRevisionOf(text));
   }
 
-  function save<T>(
+  function save<T extends { revision?: string }>(
     kind: "plan" | "roadmap",
     code: string,
     value: T,
@@ -282,6 +306,14 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
         if (baseRevision !== null && !existing) {
           throw new StoreError("record_changed", `${code} no longer exists.`);
         }
+        // The write revision and the content both count: a revision from before
+        // A → B → A, or one a direct change of the file kept, no longer matches.
+        if (existing && existing.revision !== baseRevision) {
+          throw new StoreError(
+            "record_changed",
+            `${code} was saved by someone else since it was read.`,
+          );
+        }
         const path = existing?.path ?? newPath(db);
         replace(data, path);
         assertRulesFor(code, ruleInput(data));
@@ -293,7 +325,7 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
             refused,
           );
         }
-        const revision = writeRecord(db, path, value, baseRevision, origin);
+        const revision = writeRecord(db, path, value, existing?.fileRevision ?? null, origin);
         return { value, revision };
       }),
     );
@@ -325,7 +357,7 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
         }),
       ),
     savePlan: async (input, baseRevision) => {
-      const value = parsePlan(input, input.dev_code);
+      const value = withNewRevision(parsePlan(input, input.dev_code));
       return save(
         "plan",
         value.dev_code,
@@ -338,7 +370,7 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
         (data, path) => {
           data.plans = [
             ...data.plans.filter((entry) => entry.path !== path),
-            { path, value, revision: "" },
+            { path, value, revision: "", fileRevision: "" },
           ];
         },
       );
@@ -357,7 +389,7 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
         }),
       ),
     saveRoadmap: async (input, baseRevision) => {
-      const value = parseRoadmap(input, input.roadmap_code);
+      const value = withNewRevision(parseRoadmap(input, input.roadmap_code));
       return save(
         "roadmap",
         value.roadmap_code,
@@ -370,7 +402,7 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
         (data, path) => {
           data.roadmaps = [
             ...data.roadmaps.filter((entry) => entry.path !== path),
-            { path, value, revision: "" },
+            { path, value, revision: "", fileRevision: "" },
           ];
         },
         // A roadmap's evidence must name files the data repository publishes.

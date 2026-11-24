@@ -77,8 +77,19 @@ function fieldLabel(messages: Messages, pointer: string, fallback: string): stri
 }
 
 /**
+ * A record without its write revision: audit metadata that every save
+ * replaces, which a reviewer never needs to see as a changed field.
+ */
+function withoutWriteRevision(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const { revision: _revision, ...rest } = value as Record<string, unknown>;
+  return rest;
+}
+
+/**
  * The fields a reviewer sees as changed: compared by value, never by the
- * order of keys in the file, and named and summarized in `locale`.
+ * order of keys in the file, and named and summarized in `locale`. The
+ * record's write revision is left out.
  */
 export function changedFields(
   before: unknown,
@@ -87,8 +98,8 @@ export function changedFields(
   maxFields = 12,
 ): { fields: ReviewFieldSummary[]; truncated: number } {
   const messages = messagesFor(locale);
-  const left = canonical(before ?? {});
-  const right = canonical(after ?? {});
+  const left = canonical(withoutWriteRevision(before ?? {}));
+  const right = canonical(withoutWriteRevision(after ?? {}));
   const diff = structuralDiff(left, right, { maxFields });
   return {
     fields: diff.fields.map((field) => ({

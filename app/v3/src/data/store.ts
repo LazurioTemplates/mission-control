@@ -16,7 +16,15 @@ import type { Locale } from "../i18n/locale.ts";
  * by its code, and a change is confirmed by an opaque revision.
  */
 
-/** An opaque version of one stored record; a save names the one it was edited from. */
+/**
+ * An opaque version of one stored record; a save names the one it was edited
+ * from. It is new for every write, never derived from the content alone and
+ * never a counter (Module Standard, "One data port"): every write stores a new
+ * random write revision in the record's `revision` field, and the port's
+ * revision combines that value with a fingerprint of the content, so after
+ * A → B → A it differs and a direct change that kept the old write revision is
+ * still a change. It is not the record's `revision` field itself.
+ */
 export type Revision = string;
 
 export interface Stored<T> {

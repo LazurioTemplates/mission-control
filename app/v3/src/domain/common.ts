@@ -7,6 +7,16 @@ export const isoDate = z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/, "expecte
 /** A non-empty line of text. */
 export const text = z.string().min(1);
 
+/**
+ * The record's write revision: a new random value that the storage port stores
+ * on every write of a plan or roadmap (Module Standard, "One data port"), so
+ * two writes of the same content never share a revision. Audit metadata, not
+ * part of the plan; a record written before it existed has none.
+ */
+export const writeRevision = text.describe(
+  "Write revision: a new random value stored by every write of the record. Leave it as read; the App replaces it.",
+);
+
 /** The lifecycle shared by plans, roadmaps and roadmap steps. */
 export const STATUSES = [
   "shaping",

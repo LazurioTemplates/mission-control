@@ -8,8 +8,10 @@
   v3.4.0) every writer of the Module's data stores a new `record.revision` on
   every write: the App, an import, an agent's script, a direct change. Take
   this release in every Environment that writes the same data before their
-  writes meet. A writer that keeps or leaves out the revision makes the merge
-  fail on `/record/revision`.
+  writes meet. Plans and roadmaps are flat records, so the revision is the
+  top-level field `/revision`: two concurrent saves of the same plan or roadmap
+  end in a publish conflict there even when both store a new revision
+  (Lazurio/repository-db#47); saves of different records are not affected.
 - The stack profile release `app-data@2027.03`: `@lazurio/module-kit` v0.6.0
   instead of v0.4.0. A runtime that states production never writes without
   `LAZURIO_RUNTIME_DATA_WRITER=true` (module-kit 0.4.1). module-kit 0.6.0

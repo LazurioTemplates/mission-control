@@ -28,9 +28,11 @@ import { CHANNEL_HEADER, discardInput, newPlanInput, publishInput, saveInput } f
  *
  * Saving is a draft (`write`). Publishing the draft is a Publication into the
  * Organization's data and a tool of its own, `publish_draft`
- * (`effect: "publish"`): an agent calls it only on the person's explicit
- * "Publikuj"; module-kit 0.6.0 offers it wherever the App may write, a
- * production application included. Finishing a send and taking colleagues' work (`pull`)
+ * (`effect: "publish"`). Discarding draft changes cannot be taken back, so
+ * `discard_draft` is a Publication too (`effect: "publish"`, Module Standard,
+ * "Effects and publication"). An agent calls either only on the person's
+ * explicit "Publikuj"; module-kit 0.6.0 offers them wherever the App may
+ * write, a production application included. Finishing a send and taking colleagues' work (`pull`)
  * stay the Draft page's buttons.
  */
 
@@ -66,7 +68,12 @@ function forwardedHeaders(context: ToolContext, origin: string): Headers {
 /** The API's answer as a tool result: data, or the API's refusal with its code. */
 async function resultOf(response: Response): Promise<ToolResult<object>> {
   const body = (await response.json().catch(() => null)) as
-    | (Record<string, unknown> & { code?: unknown; message?: unknown; issues?: unknown })
+    | (Record<string, unknown> & {
+        code?: unknown;
+        message?: unknown;
+        issues?: unknown;
+        current_revision?: unknown;
+      })
     | unknown[]
     | null;
   if (!response.ok) {
@@ -78,7 +85,14 @@ async function resultOf(response: Response): Promise<ToolResult<object>> {
         : `The App answered HTTP ${response.status}.`;
     const issues =
       Array.isArray(refusal?.issues) && refusal.issues.length > 0 ? refusal.issues : null;
-    return { ok: false, reason, message, ...(issues ? { details: { issues } } : {}) };
+    const current = typeof refusal?.current_revision === "string" ? refusal.current_revision : null;
+    return {
+      ok: false,
+      reason,
+      message,
+      ...(current ? { current_revision: current } : {}),
+      ...(issues ? { details: { issues } } : {}),
+    };
   }
   if (Array.isArray(body)) return { ok: true, data: { items: body } };
   return { ok: true, data: body ?? {} };
@@ -222,7 +236,8 @@ export function createAgentTools(options: AgentToolsOptions): ToolRegistry {
         input: discardInput,
         inputSchema: schemaOf(discardInput),
         minRole: "user",
-        effect: "write",
+        // Discarded changes cannot be taken back: a Publication, like publish_draft.
+        effect: "publish",
         run: (input, context) =>
           call(context, "/api/draft/discard", { method: "POST", body: input }),
       }),

@@ -48,7 +48,7 @@ import type {
   Stored,
   StoreEvent,
 } from "./store.ts";
-import { readOnly, StoreError } from "./store.ts";
+import { readOnly, recordChanged, StoreError } from "./store.ts";
 
 /** `Repository-Db-Source` of every publish from this App. */
 const SOURCE = "mission-control-v3";
@@ -67,6 +67,28 @@ export interface RepositoryDbStoreOptions {
    * its replica.
    */
   writes?: boolean;
+  /** Receives the record of every discard (default: one JSON line to stdout). */
+  audit?: (event: DiscardAudit) => void;
+}
+
+/**
+ * Who discarded which draft changes and by which channel. A discard is a
+ * Publication (it cannot be taken back), and repository-db has no commit or
+ * record of its own for it, so the App writes this line, with the same actor
+ * and source a publication's commit carries.
+ */
+export interface DiscardAudit {
+  event: "draft-discard";
+  kind: "app" | "agent" | "unknown";
+  /** `mission-control-v3/<channel>`, or `mission-control-v3` without a stated channel. */
+  source: string;
+  /** The person's subject; absent for a caller without one, never invented. */
+  actor?: string;
+  scope: DiscardScope["kind"];
+  /** Paths returned to their published content. */
+  restored: string[];
+  /** Paths that only existed in the draft and were removed. */
+  removed: string[];
 }
 
 interface FileRecord<T> {
@@ -108,6 +130,7 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
     },
   });
   const writes = options.writes ?? true;
+  const audit = options.audit ?? ((event: DiscardAudit) => console.log(JSON.stringify(event)));
   const interval = options.intervalMs ?? 30_000;
   if (writes && interval > 0) host.start();
 
@@ -294,24 +317,24 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
     const origin = attribution(SOURCE);
     return engine(() =>
       host.run(`save-${kind}`, (db) => {
+        const find = (data: Snapshot) =>
+          (kind === "plan" ? data.plans : data.roadmaps).find((entry) =>
+            kind === "plan"
+              ? (entry.value as Plan).dev_code === code
+              : (entry.value as Roadmap).roadmap_code === code,
+          );
         const data = snapshot(db);
-        const existing = (kind === "plan" ? data.plans : data.roadmaps).find((entry) =>
-          kind === "plan"
-            ? (entry.value as Plan).dev_code === code
-            : (entry.value as Roadmap).roadmap_code === code,
-        );
+        const existing = find(data);
         if (baseRevision === null && existing) {
-          throw new StoreError("record_changed", `${code} already exists.`);
+          throw recordChanged(`${code} already exists.`, existing.revision);
         }
-        if (baseRevision !== null && !existing) {
-          throw new StoreError("record_changed", `${code} no longer exists.`);
-        }
+        if (baseRevision !== null && !existing) throw recordChanged(`${code} no longer exists.`);
         // The write revision and the content both count: a revision from before
         // A → B → A, or one a direct change of the file kept, no longer matches.
         if (existing && existing.revision !== baseRevision) {
-          throw new StoreError(
-            "record_changed",
+          throw recordChanged(
             `${code} was saved by someone else since it was read.`,
+            existing.revision,
           );
         }
         const path = existing?.path ?? newPath(db);
@@ -325,7 +348,21 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
             refused,
           );
         }
-        const revision = writeRecord(db, path, value, existing?.fileRevision ?? null, origin);
+        let revision: Revision;
+        try {
+          revision = writeRecord(db, path, value, existing?.fileRevision ?? null, origin);
+        } catch (error) {
+          // The file changed between the snapshot and the engine's gate: refuse
+          // with the record's revision as it stands now.
+          if (!(error instanceof RepositoryDbError) || error.code !== "record_changed") throw error;
+          let current: Revision | undefined;
+          try {
+            current = find(snapshot(db))?.revision;
+          } catch {
+            // The data cannot be read now; the refusal stays, without a revision.
+          }
+          throw recordChanged(error.message, current);
+        }
         return { value, revision };
       }),
     );
@@ -474,7 +511,18 @@ export function createRepositoryDbStore(options: RepositoryDbStoreOptions): Miss
       await engine(() => host.run("finish-send", (db) => db.finishSend({ expectedHead })));
     },
     async discard(scope: DiscardScope, expectedRevision) {
-      await engine(() => host.run("discard", (db) => db.discard({ scope, expectedRevision })));
+      // Who discarded and by which channel, taken before the discard waits in the queue.
+      const by = attribution(SOURCE);
+      const result = await engine(() =>
+        host.run("discard", (db) => db.discard({ scope, expectedRevision })),
+      );
+      audit({
+        event: "draft-discard",
+        ...by,
+        scope: result.scope,
+        restored: result.restored,
+        removed: result.removed,
+      });
     },
     async pull() {
       await engine(() => host.run("pull", (db) => db.pull()));

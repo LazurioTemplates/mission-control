@@ -47,8 +47,7 @@
   offered on `/mcp` of the Application and to the page (`/api/agent-tools`,
   registered by `@lazurio/module-kit/webmcp`): `list_plans`, `get_plan`,
   `list_roadmaps`, `get_roadmap`, `check_plans` and `get_draft` read;
-  `create_plan`, `save_plan`, `save_roadmap` and `discard_draft` save or
-  return a draft. Each calls the App's own HTTP API with the API's own input
+  `create_plan`, `save_plan` and `save_roadmap` save a draft. Each calls the App's own HTTP API with the API's own input
   schemas, so the application role, the writer rule and the revision decide
   as for a click, and every change records the channel `mcp` or `webmcp`. A
   copy that may not write lists only the reading tools.
@@ -60,6 +59,23 @@
   description of `create_plan` in both languages say the same: a person
   publishes on the Draft page, or an agent with `publish_draft` on the
   person's explicit "Publikuj".
+- `discard_draft` is a Publication too (`effect: "publish"`,
+  `destructiveHint`): discarded draft changes cannot be taken back (Module
+  Standard, "Effects and publication"). It was a draft tool (`write`). An
+  agent calls it only on the person's explicit "Publikuj" for exactly those
+  changes; the tool descriptions in both languages, the skill
+  `publish-plan-changes`, the README and `AGENTS.md` say so. The tool audit
+  carries `effect: "publish"` and the channel. repository-db records nothing
+  of a discard, so the repository-db store writes one JSON line per discard
+  (`event: "draft-discard"`) with the same `actor` and `source`
+  (`mission-control-v3/<channel>`) as a publication's commit, and the paths
+  it restored or removed.
+- `record_changed` carries the record's current revision. A save whose base
+  revision is stale gets `current_revision` in the HTTP API's refusal and in
+  the refusal of `save_plan` and `save_roadmap` on `/mcp` and on the page:
+  the port's revision of the record as it stands now, the same as `get_plan`
+  or `get_roadmap` returns, also after A → B → A and after a direct change of
+  the file. A record that no longer exists gets none.
 - The page registers its WebMCP tools without unhandled rejections. The
   browser's `registerTool(tool, { signal })` returns a promise that rejects
   with `AbortError` once a refresh or removal aborts the signal, and

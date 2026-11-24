@@ -1,6 +1,6 @@
 ---
 name: publish-plan-changes
-description: "Publish the Mission Control draft (new and edited plans and roadmaps) into the Organization's data, only after the person said \"Publikuj\" for exactly these changes. Use when a person asks you to publish the plan changes; never on your own after a change."
+description: "Publish the Mission Control draft (new and edited plans and roadmaps) into the Organization's data, or discard draft changes, only after the person said \"Publikuj\" for exactly these changes. Use when a person asks you to publish or discard the plan changes; never on your own after a change."
 ---
 
 # Publish the plan changes
@@ -10,15 +10,17 @@ its changes into the Organization's data as one change that colleagues and
 agents see. It is a Publication: you do it only on the person's explicit
 instruction ("Publikuj", "publish it") for the changes they saw, never because
 a check passed or a task seems done. Without that instruction you prepare
-everything and stop.
+everything and stop. Discarding draft changes (`discard_draft`) cannot be
+taken back, so it is a Publication too, under the same rule.
 
 ## 1. Find the App and whether it lets you publish
 
 Use the App's tools for agents as in the skill `create-plan`.
 
-- `publish_draft` is a tool of its own, offered wherever the App may write,
-  in a production application too (module-kit 0.6.0). When it is not in the
-  list, this copy may not write: the person publishes on the Draft page
+- `publish_draft` and `discard_draft` are tools of their own
+  (`destructiveHint`), offered wherever the App may write, in a production
+  application too (module-kit 0.6.0). When they are not in the list, this
+  copy may not write: the person publishes or discards on the Draft page
   ("Koncept a publikace" / "Draft and publish"). Say so and stop.
 - `get_app_context` with `can_write: false` means this copy changes nothing,
   publication included.
@@ -36,8 +38,11 @@ Use the App's tools for agents as in the skill `create-plan`.
   `revision`.
 - When the draft holds changes the person did not ask for (a colleague's, an
   earlier session's), name them. The draft is published whole; returning a
-  part is `discard_draft` with `{"kind": "record", "path": "<technicalPath>"}`,
-  only on the person's instruction, because discarded changes are gone.
+  part is `discard_draft` with `{"kind": "record", "path": "<technicalPath>"}`
+  and the draft's `revision` as `expectedRevision`. It is a Publication:
+  only on the person's explicit "Publikuj" for discarding exactly that
+  record, because discarded changes are gone. The App records who discarded
+  and by which channel.
 
 ## 3. Publish on the person's word
 

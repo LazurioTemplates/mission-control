@@ -1,6 +1,9 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { ToolAuditEvent } from "@lazurio/module-kit/tools";
 import {
+  gatewayRequest,
   hostedEnvironment,
   localEnvironment,
   mcpCall,
@@ -10,8 +13,9 @@ import {
   TEST_ORIGIN,
   TEST_SUBJECT,
 } from "@lazurio/module-kit/tools/testing";
+import { parseYaml, toStableYaml } from "@lazurio/repository-db";
 import { createMemoryStore } from "../src/data/memory-store.ts";
-import { createRepositoryDbStore } from "../src/data/repository-db-store.ts";
+import { createRepositoryDbStore, type DiscardAudit } from "../src/data/repository-db-store.ts";
 import type { MissionControlStore } from "../src/data/store.ts";
 import { accessOf, type Env, LISTENER } from "../src/server/access.ts";
 import { createAgentTools } from "../src/server/agent-tools.ts";
@@ -76,6 +80,54 @@ function setup(
 const hosted = (writer: boolean) => hostedEnvironment({ writer, listener: LISTENER });
 const user = { role: "user" } as const;
 const admin = { role: "admin" } as const;
+
+type Saved = { value: Record<string, unknown>; revision: string };
+
+/** The tools the page's manifest (`GET /api/agent-tools`) lists for a caller. */
+async function pageManifest(
+  tools: ReturnType<typeof setup>["tools"],
+): Promise<Array<{ name: string; effect: string; annotations: Record<string, unknown> }>> {
+  const response = await tools.handlePage(gatewayRequest("/api/agent-tools", { caller: user }));
+  if (!response) throw new Error("The page manifest did not answer.");
+  return ((await response.json()) as { tools: never[] }).tools;
+}
+
+/**
+ * Every stale revision is refused on /mcp and on the page with the revision
+ * the record has now, the one `get_<kind>` returns; a save with it passes.
+ */
+async function staleSavesGetTheCurrentRevision(
+  tools: ReturnType<typeof setup>["tools"],
+  kind: "plan" | "roadmap",
+  code: string,
+  stale: string[],
+) {
+  const current = (await mcpTool(tools, `get_${kind}`, { code }, user)).structured as Saved;
+  const record = { ...current.value, owner: "samtaylor" };
+  for (const baseRevision of stale) {
+    expect(baseRevision).not.toBe(current.revision);
+    const mcp = await mcpTool(tools, `save_${kind}`, { code, record, baseRevision }, user);
+    expect(mcp).toMatchObject({
+      isError: true,
+      structured: { reason: "record_changed", current_revision: current.revision },
+    });
+    const page = await pageTool(tools, `save_${kind}`, { code, record, baseRevision }, user);
+    expect(page.body).toMatchObject({
+      ok: false,
+      reason: "record_changed",
+      current_revision: current.revision,
+    });
+  }
+  const retried = await mcpTool(
+    tools,
+    `save_${kind}`,
+    { code, record, baseRevision: current.revision },
+    user,
+  );
+  expect(retried.isError).toBe(false);
+  const after = (await mcpTool(tools, `get_${kind}`, { code }, user)).structured as Saved;
+  expect(after.value.owner).toBe("samtaylor");
+}
 
 describe("tools for agents", () => {
   test("an application user and an application admin see the reading and the writing tools while the App writes", async () => {
@@ -199,34 +251,151 @@ describe("tools for agents", () => {
     expect(await store.getPlan("EX-0005")).toBeNull();
   });
 
-  test("save_plan with a revision from before A → B → A ends with record_changed, on /mcp and on the page", async () => {
+  test("a stale save after A → B → A ends with record_changed and the current revision, on /mcp and on the page", async () => {
     const { tools } = setup(hosted(true));
-    type Saved = { value: Record<string, unknown>; revision: string };
-    const found = (await mcpTool(tools, "get_plan", { code: "EX-0003" }, user)).structured as Saved;
-    const a = found.value;
-    const b = await mcpTool(
-      tools,
-      "save_plan",
-      { code: "EX-0003", record: { ...a, status: "in_progress" }, baseRevision: found.revision },
-      user,
+    for (const kind of ["plan", "roadmap"] as const) {
+      const code = kind === "plan" ? "EX-0003" : "RM-0001";
+      const get = `get_${kind}`;
+      const save = `save_${kind}`;
+      const change = kind === "plan" ? { status: "in_progress" } : { summary: "A new summary." };
+      const found = (await mcpTool(tools, get, { code }, user)).structured as Saved;
+      const a = found.value;
+      const b = await mcpTool(
+        tools,
+        save,
+        { code, record: { ...a, ...change }, baseRevision: found.revision },
+        user,
+      );
+      expect(b.isError).toBe(false);
+      const back = await pageTool(
+        tools,
+        save,
+        { code, record: a, baseRevision: (b.structured as Saved).revision },
+        user,
+      );
+      expect(back.status).toBe(200);
+      expect(back.body.ok).toBe(true);
+      await staleSavesGetTheCurrentRevision(tools, kind, code, [
+        found.revision,
+        (b.structured as Saved).revision,
+      ]);
+    }
+  });
+
+  test("a stale save after a direct change of the file gets the current revision", async () => {
+    const fixture = createFixtureRepo({ sample: true });
+    const store = createRepositoryDbStore({
+      mountRoot: fixture.mountRoot,
+      expect: { remote: fixture.origin, branch: "v3", within: fixture.moduleRoot },
+      intervalMs: 0,
+    });
+    try {
+      const { tools } = setup(hosted(true), store);
+      const found = (await mcpTool(tools, "get_plan", { code: "EX-0003" }, user))
+        .structured as Saved;
+      const saved = await mcpTool(
+        tools,
+        "save_plan",
+        {
+          code: "EX-0003",
+          record: { ...found.value, status: "in_progress" },
+          baseRevision: found.revision,
+        },
+        user,
+      );
+      expect(saved.isError).toBe(false);
+      // An agent edits the file by hand and keeps the write revision it found.
+      const path = join(
+        fixture.mountRoot,
+        "data/mission-control/plans/2026/10/EX-0003-weekly-planning-review.yaml",
+      );
+      const record = parseYaml(readFileSync(path, "utf8")) as Record<string, unknown>;
+      writeFileSync(path, toStableYaml({ ...record, title: "Changed by hand" }));
+      await staleSavesGetTheCurrentRevision(tools, "plan", "EX-0003", [
+        (saved.structured as Saved).revision,
+      ]);
+    } finally {
+      store.close();
+      fixture.cleanup();
+    }
+  });
+
+  test("discard_draft is a publication: destructiveHint on /mcp and the page, offered only while the App writes, audited with its effect and channel", async () => {
+    const { tools, audits } = setup(hosted(true));
+    const { body } = await mcpCall(tools, "tools/list", {}, { caller: user });
+    const listed = (body.result as { tools: Array<{ name: string; annotations: object }> }).tools;
+    expect(listed.find((tool) => tool.name === "discard_draft")?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
+    const manifest = await pageManifest(tools);
+    expect(manifest.find((tool) => tool.name === "discard_draft")).toMatchObject({
+      effect: "publish",
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    });
+
+    // Without the writer neither /mcp nor the page offers it.
+    const readOnlyCopy = setup(hosted(false)).tools;
+    expect(await mcpToolNames(readOnlyCopy, admin)).not.toContain("discard_draft");
+    expect((await pageManifest(readOnlyCopy)).map((tool) => tool.name)).not.toContain(
+      "discard_draft",
     );
-    expect(b.isError).toBe(false);
-    const back = await pageTool(
-      tools,
-      "save_plan",
-      { code: "EX-0003", record: a, baseRevision: (b.structured as Saved).revision },
-      user,
-    );
-    expect(back.status).toBe(200);
-    expect(back.body.ok).toBe(true);
-    const edit = { code: "EX-0003", record: { ...a, owner: "samtaylor" } };
-    for (const baseRevision of [found.revision, (b.structured as Saved).revision]) {
-      expect(await mcpTool(tools, "save_plan", { ...edit, baseRevision }, user)).toMatchObject({
-        isError: true,
-        structured: { reason: "record_changed" },
+
+    for (const [channel, call] of [
+      ["mcp", (input: unknown) => mcpTool(tools, "discard_draft", input, user)],
+      ["webmcp", (input: unknown) => pageTool(tools, "discard_draft", input, user)],
+    ] as const) {
+      expect((await mcpTool(tools, "create_plan", NEW_PLAN, user)).isError).toBe(false);
+      const draft = await mcpTool(tools, "get_draft", {}, user);
+      const revision = (draft.structured as { revision: string }).revision;
+      await call({ scope: { kind: "draft" }, expectedRevision: revision });
+      expect(audits.at(-1)).toMatchObject({
+        tool: "discard_draft",
+        effect: "publish",
+        channel,
+        subject: TEST_SUBJECT,
+        outcome: "ok",
       });
-      const page = await pageTool(tools, "save_plan", { ...edit, baseRevision }, user);
-      expect(page.body).toMatchObject({ ok: false, reason: "record_changed" });
+    }
+  });
+
+  test("the data store record who discarded and by which channel, as for a publication", async () => {
+    const fixture = createFixtureRepo({ sample: true });
+    const discards: DiscardAudit[] = [];
+    const store = createRepositoryDbStore({
+      mountRoot: fixture.mountRoot,
+      expect: { remote: fixture.origin, branch: "v3", within: fixture.moduleRoot },
+      intervalMs: 0,
+      audit: (event) => discards.push(event),
+    });
+    try {
+      const { tools } = setup(hosted(true), store);
+      for (const channel of ["mcp", "webmcp"] as const) {
+        expect((await mcpTool(tools, "create_plan", NEW_PLAN, user)).isError).toBe(false);
+        const card = (await mcpTool(tools, "get_draft", {}, user)).structured as {
+          revision: string;
+          records: Array<{ technicalPath: string }>;
+        };
+        const path = card.records[0]?.technicalPath ?? "";
+        const input = { scope: { kind: "record", path }, expectedRevision: card.revision };
+        const result =
+          channel === "mcp"
+            ? (await mcpTool(tools, "discard_draft", input, user)).isError
+            : !(await pageTool(tools, "discard_draft", input, user)).body.ok;
+        expect(result).toBe(false);
+        expect(discards.at(-1)).toEqual({
+          event: "draft-discard",
+          kind: "agent",
+          actor: TEST_SUBJECT,
+          source: `mission-control-v3/${channel}`,
+          scope: "record",
+          restored: [],
+          removed: [path],
+        });
+      }
+    } finally {
+      store.close();
+      fixture.cleanup();
     }
   });
 

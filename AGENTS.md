@@ -81,6 +81,9 @@ works too. Never edit the files of `db/`. Saves are drafts; publishing the
 draft is a Publication into the Organization's data, only on the person's
 explicit instruction. `publish_draft` is its own tool, offered wherever the
 App may write, in a production application too (module-kit 0.6.0).
+Discarding draft changes cannot be taken back, so `discard_draft` is a
+Publication too (`effect: "publish"`), only on the person's explicit
+"Publikuj" for exactly those changes.
 Finishing a send and taking colleagues' work
 stay that page's buttons.
 

@@ -127,6 +127,9 @@ what the person's role and the writer mode allow. Saving is a draft;
 a production application too (module-kit 0.6.0). Publishing is a Publication
 into the Organization's data: an agent calls `publish_draft` only on the
 person's explicit "Publikuj", and a person can publish on the Draft page.
+Discarding draft changes cannot be taken back, so `discard_draft` is a
+Publication too, a tool of its own under the same rule; the App records who
+discarded and by which channel.
 
 ## Adopt it
 

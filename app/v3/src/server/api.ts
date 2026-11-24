@@ -66,9 +66,21 @@ function json(body: unknown, status = 200): Response {
   return Response.json(body, { status, headers: { "cache-control": "no-store" } });
 }
 
-/** A refusal: a stable `code` the UI words, an English `message` for agents and logs. */
-function refusal(code: string, message: string, status: number, issues: unknown[] = []) {
-  return json({ code, message, issues }, status);
+/**
+ * A refusal: a stable `code` the UI words, an English `message` for agents and
+ * logs. A `record_changed` of a record that exists carries `current_revision`.
+ */
+function refusal(
+  code: string,
+  message: string,
+  status: number,
+  issues: unknown[] = [],
+  currentRevision?: string,
+) {
+  return json(
+    { code, message, issues, ...(currentRevision ? { current_revision: currentRevision } : {}) },
+    status,
+  );
 }
 
 const STATUS_BY_CODE: Record<string, number> = {
@@ -95,7 +107,13 @@ const STATUS_BY_CODE: Record<string, number> = {
 
 function errorResponse(error: unknown): Response {
   if (error instanceof StoreError) {
-    return refusal(error.code, error.message, STATUS_BY_CODE[error.code] ?? 409, [...error.issues]);
+    return refusal(
+      error.code,
+      error.message,
+      STATUS_BY_CODE[error.code] ?? 409,
+      [...error.issues],
+      error.currentRevision,
+    );
   }
   console.error(error);
   return refusal("unexpected", error instanceof Error ? error.message : String(error), 500);

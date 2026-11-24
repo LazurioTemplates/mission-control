@@ -92,17 +92,27 @@ export interface MissionControlStore {
 /**
  * A refusal with a locale-neutral `code` (repository-db's error codes and the
  * App's own); the UI words it. `issues` name what in a record was refused.
+ * A `record_changed` of a record that exists carries its `currentRevision`,
+ * the port's revision of the record as it stands now (Module Standard, "What
+ * every App answers"), so a caller can read it again and save with it.
  */
 export class StoreError extends Error {
   readonly code: string;
   readonly issues: readonly RuleIssue[];
+  readonly currentRevision: Revision | undefined;
 
-  constructor(code: string, message: string, issues: RuleIssue[] = []) {
+  constructor(code: string, message: string, issues: RuleIssue[] = [], currentRevision?: Revision) {
     super(message);
     this.name = "StoreError";
     this.code = code;
     this.issues = issues;
+    this.currentRevision = currentRevision;
   }
+}
+
+/** The refusal of a save whose base is not the record as it stands. */
+export function recordChanged(message: string, currentRevision?: Revision): StoreError {
+  return new StoreError("record_changed", message, [], currentRevision);
 }
 
 /** The operations of the port that only read; every other one changes data. */

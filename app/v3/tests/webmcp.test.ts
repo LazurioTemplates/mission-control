@@ -37,7 +37,7 @@ const EFFECTS: Record<string, string> = {
   create_plan: "write",
   save_plan: "write",
   save_roadmap: "write",
-  discard_draft: "write",
+  discard_draft: "publish",
   publish_draft: "publish",
 };
 
@@ -51,7 +51,7 @@ const LOCAL: AppAccess = {
 };
 
 describe("tools for agents: names, schemas and descriptions", () => {
-  test("named verb first, with JSON Schema inputs, in the server's language; only publish_draft publishes", () => {
+  test("named verb first, with JSON Schema inputs, in the server's language; publish_draft and discard_draft publish", () => {
     for (const locale of ["cs", "en"] as const) {
       const registry = createAgentTools({
         api: async () => Response.json({}),

@@ -465,7 +465,7 @@ const cs = {
     save_roadmap:
       "Uloží celou upravenou roadmapu jako koncept. record je úplný záznam z get_roadmap se změnami, baseRevision revize, ze které vychází; roadmapu, která se mezitím změnila, odmítne s record_changed. Nic nepublikuje.",
     discard_draft:
-      'Zahodí změny konceptu: celý koncept (scope {kind: "draft"}) nebo jeden záznam (scope {kind: "record", path: technicalPath z get_draft}). expectedRevision je revize konceptu z get_draft; změněný koncept odmítne s draft_changed. Zahozené změny nejdou vrátit, proto ho volej jen na pokyn člověka.',
+      'Zahodí změny konceptu: celý koncept (scope {kind: "draft"}) nebo jeden záznam (scope {kind: "record", path: technicalPath z get_draft}). expectedRevision je revize konceptu z get_draft; změněný koncept odmítne s draft_changed. Zahozené změny nejdou vrátit: je to Publikace, volej ho jen na výslovný pokyn člověka „Publikuj“ pro právě tyto změny, potom co je viděl v get_draft.',
     publish_draft:
       "Publikuje celý koncept do dat Organizace jako jednu změnu, kterou uvidí kolegové i agenti. Je to Publikace: volej ho jen na výslovný pokyn člověka „Publikuj“, potom co viděl změny z get_draft. expectedRevision je revize konceptu z get_draft; změněný koncept odmítne s draft_changed. summary je volitelný popis změny.",
   },
@@ -865,7 +865,7 @@ const en: Messages = {
     save_roadmap:
       "Saves a whole edited roadmap as a draft. record is the complete record from get_roadmap with the changes, baseRevision the revision it was edited from; a roadmap that changed in the meantime is refused with record_changed. Publishes nothing.",
     discard_draft:
-      'Discards draft changes: the whole draft (scope {kind: "draft"}) or one record (scope {kind: "record", path: technicalPath from get_draft}). expectedRevision is the draft\'s revision from get_draft; a changed draft is refused with draft_changed. Discarded changes cannot be restored, so call it only on the person\'s instruction.',
+      'Discards draft changes: the whole draft (scope {kind: "draft"}) or one record (scope {kind: "record", path: technicalPath from get_draft}). expectedRevision is the draft\'s revision from get_draft; a changed draft is refused with draft_changed. Discarded changes cannot be restored: it is a Publication, call it only on the person\'s explicit "Publikuj" (publish) for exactly these changes, after they saw them in get_draft.',
     publish_draft:
       "Publishes the whole draft into the Organization's data as one change that colleagues and agents see. It is a Publication: call it only on the person's explicit \"Publikuj\" (publish), after they saw the changes from get_draft. expectedRevision is the draft's revision from get_draft; a changed draft is refused with draft_changed. summary is an optional description of the change.",
   },

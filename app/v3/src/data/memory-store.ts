@@ -22,7 +22,7 @@ import type {
   Stored,
   StoreEvent,
 } from "./store.ts";
-import { StoreError } from "./store.ts";
+import { recordChanged, StoreError } from "./store.ts";
 
 /**
  * Mission Control's storage in memory: the same port and the same Draft &
@@ -89,14 +89,14 @@ export function createMemoryStore(seed: MemoryStoreSeed): MissionControlStore {
 
   function save<T extends Value>(key: Key, code: string, value: T, base: Revision | null) {
     const current = draft.get(key);
-    if (base === null && current) throw new StoreError("record_changed", `${code} already exists.`);
-    if (base !== null && !current) {
-      throw new StoreError("record_changed", `${code} no longer exists.`);
+    if (base === null && current) {
+      throw recordChanged(`${code} already exists.`, revisionOf(current));
     }
+    if (base !== null && !current) throw recordChanged(`${code} no longer exists.`);
     if (current && base !== revisionOf(current)) {
-      throw new StoreError(
-        "record_changed",
+      throw recordChanged(
         `${code} was saved by someone else since it was read.`,
+        revisionOf(current),
       );
     }
     const previous = draft.get(key);

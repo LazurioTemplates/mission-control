@@ -1,5 +1,5 @@
 import type { DraftPanelInput } from "@lazurio/repository-db";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MissionControlConfig } from "../domain/config.ts";
 import type { Plan } from "../domain/plan.ts";
 import type { Roadmap } from "../domain/roadmap.ts";
@@ -17,6 +17,7 @@ import { PlanListPage } from "./pages/PlanListPage.tsx";
 import { RoadmapDetailPage } from "./pages/RoadmapDetailPage.tsx";
 import { RoadmapListPage } from "./pages/RoadmapListPage.tsx";
 import { parseRoute, type Route, samePage } from "./routes.ts";
+import { type InstalledTools, installTools } from "./webmcp.ts";
 import { useCanWrite, WriteContext } from "./write.tsx";
 
 export interface MissionData {
@@ -83,6 +84,22 @@ export function App() {
   const changed = async () => {
     await Promise.all([reload(), reloadDraft()]);
   };
+
+  // The tools for agents: the server's, as it lists them for the person now
+  // (role and writer mode), registered as WebMCP tools of the page.
+  const installed = useRef<InstalledTools | null>(null);
+  useEffect(() => {
+    const tools = installTools();
+    installed.current = tools;
+    return () => {
+      installed.current = null;
+      tools.remove();
+    };
+  }, []);
+  // A change of the writer mode lists other tools on the server.
+  useEffect(() => {
+    if (canWrite !== null) installed.current?.refresh();
+  }, [canWrite]);
 
   return (
     <WriteContext.Provider value={canWrite}>

@@ -2,6 +2,97 @@
 
 ## Unreleased
 
+### For whoever runs it
+
+- **All writers at once.** With `app-data@2027.03` (`@lazurio/repository-db`
+  v3.4.0) every writer of the Module's data stores a new `record.revision` on
+  every write: the App, an import, an agent's script, a direct change. Take
+  this release in every Environment that writes the same data before their
+  writes meet. Plans and roadmaps are flat records, so the revision is the
+  top-level field `/revision`: two concurrent saves of the same plan or roadmap
+  end in a publish conflict there even when both store a new revision
+  (Lazurio/repository-db#47); saves of different records are not affected.
+- The stack profile release `app-data@2027.03`: `@lazurio/module-kit` v0.6.0
+  instead of v0.4.0. A runtime that states production never writes without
+  `LAZURIO_RUNTIME_DATA_WRITER=true` (module-kit 0.4.1). module-kit 0.6.0
+  offers publication tools in a production application too (decision D1 of
+  LZD-0037) and records each call's `effect` in the audit, so this template's
+  `publish_draft` (below) is offered wherever the App may write.
+  Nothing in an adopted copy's own files changes; take it by merging the tag.
+- `@lazurio/repository-db` v3.4.0 instead of v3.2.6, and a revision that is
+  new for every write (Module Standard, One data port). Before, a record's
+  revision was a fingerprint of its content alone, so after A → B → A an
+  editor still holding the revision of the first A saved over B's history
+  unnoticed. Now every write of a plan or roadmap, in both stores, stores a
+  new `crypto.randomUUID()` in the record's top-level `revision` field, and
+  the port's revision is that value with the fingerprint of the content
+  (`portRevision`). A save with a revision from before A → B → A, or one made
+  before a direct edit of the file that kept the old `revision`, ends with
+  `record_changed`. The draft's review does not show `revision` as a changed
+  field.
+- The plan and roadmap schemas (Zod, `templates/data-repo/schemas/*.schema.json`
+  and the check bundle) accept `revision` as an optional string. An
+  Organization's data repository takes the regenerated `schemas/` and
+  `scripts/mission-control-check.js` in its own pull request before the App
+  saves with this version: the previous bundle refuses a record with
+  `revision`, so a publish would stop on `validation_failed`.
+- Plans and roadmaps are flat records, not repository-db's `{ id, record }`
+  envelope, so 3.4.0's merge of `record.revision` as audit metadata does not
+  apply to them: two colleagues' concurrent saves of the same record now stop
+  on a publish conflict (`/revision`), also when they changed different
+  fields. Saves of different records are not affected.
+
+### For agents
+
+- Tools for agents, defined once on the server
+  (`app/v3/src/server/agent-tools.ts`, `@lazurio/module-kit/tools`) and
+  offered on `/mcp` of the Application and to the page (`/api/agent-tools`,
+  registered by `@lazurio/module-kit/webmcp`): `list_plans`, `get_plan`,
+  `list_roadmaps`, `get_roadmap`, `check_plans` and `get_draft` read;
+  `create_plan`, `save_plan` and `save_roadmap` save a draft. Each calls the App's own HTTP API with the API's own input
+  schemas, so the application role, the writer rule and the revision decide
+  as for a click, and every change records the channel `mcp` or `webmcp`. A
+  copy that may not write lists only the reading tools.
+- `publish_draft` publishes the draft as a tool of its own
+  (`effect: "publish"`, `destructiveHint`), only on the person's explicit
+  "Publikuj". It is offered wherever the App may write, in a production
+  application too (module-kit 0.6.0). Finishing a send and taking
+  colleagues' work are no tools. The README, the skill `create-plan` and the
+  description of `create_plan` in both languages say the same: a person
+  publishes on the Draft page, or an agent with `publish_draft` on the
+  person's explicit "Publikuj".
+- `discard_draft` is a Publication too (`effect: "publish"`,
+  `destructiveHint`): discarded draft changes cannot be taken back (Module
+  Standard, "Effects and publication"). It was a draft tool (`write`). An
+  agent calls it only on the person's explicit "Publikuj" for exactly those
+  changes; the tool descriptions in both languages, the skill
+  `publish-plan-changes`, the README and `AGENTS.md` say so. The tool audit
+  carries `effect: "publish"` and the channel. repository-db records nothing
+  of a discard, so the repository-db store writes one JSON line per discard
+  (`event: "draft-discard"`) with the same `actor` and `source`
+  (`mission-control-v3/<channel>`) as a publication's commit, and the paths
+  it restored or removed.
+- `record_changed` carries the record's current revision. A save whose base
+  revision is stale gets `current_revision` in the HTTP API's refusal and in
+  the refusal of `save_plan` and `save_roadmap` on `/mcp` and on the page:
+  the port's revision of the record as it stands now, the same as `get_plan`
+  or `get_roadmap` returns, also after A → B → A and after a direct change of
+  the file. A record that no longer exists gets none.
+- The page registers its WebMCP tools without unhandled rejections. The
+  browser's `registerTool(tool, { signal })` returns a promise that rejects
+  with `AbortError` once a refresh or removal aborts the signal, and
+  module-kit 0.6.0 does not handle it (Lazurio/module-kit#14): in the
+  Environment browser `bun run dev:demo` opened Bun's error overlay with one
+  rejection per removed tool. `app/v3/src/ui/webmcp.ts` now hands
+  `registerAgentTools` the browser's `modelContext` behind a wrapper that
+  handles that promise, runs a refresh only after the registration or the
+  previous refresh, and keeps the page working when the server's tool list
+  does not answer.
+- Skills in `.agents/skills/` (the same files in `.claude/skills/`):
+  `create-plan`, `check-plans` and `publish-plan-changes`. `create-plan` and
+  `check-plans` say that `baseRevision` is the `revision` beside the record,
+  not the record's own `revision` field, which the App replaces.
+
 ## 4.2.1 — 2026-11-19
 
 ### For people

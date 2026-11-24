@@ -32,6 +32,18 @@ release with a security fix.
   `tests/store-contract.ts`. The server and the UI call only the port.
 - **A new page** is a React component in `app/v3/src/ui/pages/` and a route in
   `routes.ts`; it calls only the HTTP API (`app/v3/src/ui/api.ts`).
+- **A tool for agents** for what people and agents do often is defined once
+  on the server, in `app/v3/src/server/agent-tools.ts`
+  (`@lazurio/module-kit/tools`): its input is the API's own Zod schema, it
+  calls the same HTTP API and is offered on `/mcp` and to the page
+  (`/api/agent-tools`, registered by `app/v3/src/ui/webmcp.ts`). Its
+  description is a text of both catalogs (`tools` in
+  `app/v3/src/i18n/messages.ts`). A draft is `effect: "write"`; a
+  publication is a tool of its own with `effect: "publish"`, never a mode of
+  another tool. Cover it in `tests/agent-tools.test.ts`.
+- **A procedure for agents** (how to work with the plans) is a skill in
+  `.agents/skills/<name>/SKILL.md` with the same file in `.claude/skills/`;
+  it works through the tools and the HTTP API, never the files of `db/`.
 - **Look and feel.** `app/v3/src/instance/` is the Organization's overlay:
   `brand.ts` and `theme.css` (which may omit the grid layer). Keep shared
   styling in `src/ui/styles.css` and `src/design-system/`.
@@ -70,10 +82,10 @@ git merge --no-ff <commit>
 ## Stack profile releases
 
 The template follows the stack profile [`app-data`](https://github.com/Lazurio/LazurioPlatform/blob/main/docs/stack-profiles.md#app-data)
-(release 2026.12, `app-data@2026.12`): exact versions of
+(release 2027.03, `app-data@2027.03`): exact versions of
 Bun, TypeScript, Vite, React, Biome, Zod, repository-db and module-kit
 (see `app/v3/package.json`). A **stack profile release** moves those versions
-together, for example `app-data@2026.12` to `app-data@2027.05`: one template release that
+together, for example `app-data@2027.03` to `app-data@2027.05`: one template release that
 updates `packageManager`, the exact versions, `bun.lock`, the CI's Bun and, if
 the formatter changed, reformats once. Organizations take it by merging its
 tag like any other release. Between profile releases only patch versions with

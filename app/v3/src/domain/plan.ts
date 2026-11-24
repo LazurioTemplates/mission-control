@@ -8,6 +8,7 @@ import {
   status,
   taskId,
   text,
+  writeRevision,
 } from "./common.ts";
 
 /**
@@ -133,6 +134,7 @@ export const plan = z.strictObject({
     .optional(),
   review_evidence: z.array(reviewEvidence).optional(),
   links: z.array(link).optional(),
+  revision: writeRevision.optional(),
 });
 
 export type Plan = z.infer<typeof plan>;

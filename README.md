@@ -6,8 +6,8 @@ which acceptance criteria everyone knows it is done. Roadmaps order plans into
 steps over time and show what can start now. Every plan has an owner, tasks
 have assignees, and a roadmap names the agents doing its work and the people
 who review it. Every edit is first a draft: a person reviews the changed
-records in plain words and publishes them as one change, so colleagues and
-agents always work from the same, current plan.
+records in plain words and publishes them as one change, or tells an agent
+to, so colleagues and agents always work from the same, current plan.
 
 ![The overview: what Mission Control is for, plans by state, the main roadmap and its next steps](docs/screenshots/en/mission-control-overview.webp)
 
@@ -19,7 +19,8 @@ agents always work from the same, current plan.
   roadmap can be the main one.
 - **Draft & Publish**: an edit is a draft. A person reviews the changed
   records in business language and publishes them as one change to the
-  Organization's data, or returns them.
+  Organization's data, or returns them. An agent publishes only on the
+  person's explicit "Publikuj".
 
 The interface speaks Czech and English. It follows the language Lazurio
 gives the page (the `locale` of `/.lazurio/shell.json`) and is Czech where
@@ -34,7 +35,7 @@ the public upstream `LazurioTemplates/mission-control` under the MIT license.
 | | |
 | --- | --- |
 | App generation | `app/v3`: data in [repository-db](https://github.com/Lazurio/repository-db) |
-| Stack profile | [`app-data`](https://github.com/Lazurio/LazurioPlatform/blob/main/docs/stack-profiles.md#app-data), release 2026.12 (`app-data@2026.12`): Bun 1.4.4, TypeScript 7.0.2, Vite 8.3.5, React 19.3.1, Biome 2.6.4, Zod 4.6.7, `@lazurio/repository-db` v3.2.6, `@lazurio/module-kit` v0.4.0, exact versions only |
+| Stack profile | [`app-data`](https://github.com/Lazurio/LazurioPlatform/blob/main/docs/stack-profiles.md#app-data), release 2027.03 (`app-data@2027.03`): Bun 1.4.4, TypeScript 7.0.2, Vite 8.3.5, React 19.3.1, Biome 2.6.4, Zod 4.6.7, `@lazurio/repository-db` v3.4.0, `@lazurio/module-kit` v0.6.0, exact versions only |
 | Data | the Organization's own repository `mission-control-data`, branch `v3`, checked out as `db/` |
 | Shape of the data | Zod schemas in `app/v3/src/domain/`; the JSON Schemas of the data repository are generated from them |
 
@@ -44,8 +45,9 @@ app/v3/src/
   data/     the storage port (store.ts), its repository-db implementation and a memory one;
             files.ts reads and checks records for the App and the data repository alike
   i18n/     the Czech and English texts of the interface
-  server/   Bun.serve: the HTTP API over the port, health, the client
-  ui/       React; talks only to the HTTP API
+  server/   Bun.serve: the HTTP API over the port, the tools for agents (/mcp and the page),
+            health, the client
+  ui/       React; talks only to the HTTP API and registers the tools for agents (WebMCP)
   cli/      validate, schema and check bundle export
 app/v3/tests/store-contract.ts   the shared test suite every store implementation passes
 templates/data-repo/             the data repository an adopting Organization starts from
@@ -110,6 +112,24 @@ person's language without a new release once Lazurio relays the document.
 The example records exist in both languages (`templates/sample-data/cs/`,
 `templates/sample-data/en/`): the same codes, states, dates and people, so
 the screenshots of both languages show the same views.
+
+## Agents
+
+`AGENTS.md` holds the rules. The procedures live as skills in
+`.agents/skills/` (and the same files in `.claude/skills/`): creating a plan
+from a person's description, checking the plans and publishing the draft on
+the person's instruction. The App offers its main actions as tools for
+agents (`list_plans`, `get_plan`, `create_plan`, `save_plan`, `check_plans`,
+`get_draft` and more), defined once on its server: on `/mcp` of the
+Application and as WebMCP tools in the Environment browser. They list only
+what the person's role and the writer mode allow. Saving is a draft;
+`publish_draft` is a tool of its own, offered wherever the App may write, in
+a production application too (module-kit 0.6.0). Publishing is a Publication
+into the Organization's data: an agent calls `publish_draft` only on the
+person's explicit "Publikuj", and a person can publish on the Draft page.
+Discarding draft changes cannot be taken back, so `discard_draft` is a
+Publication too, a tool of its own under the same rule; the App records who
+discarded and by which channel.
 
 ## Adopt it
 

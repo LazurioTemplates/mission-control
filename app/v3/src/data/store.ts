@@ -16,7 +16,15 @@ import type { Locale } from "../i18n/locale.ts";
  * by its code, and a change is confirmed by an opaque revision.
  */
 
-/** An opaque version of one stored record; a save names the one it was edited from. */
+/**
+ * An opaque version of one stored record; a save names the one it was edited
+ * from. It is new for every write, never derived from the content alone and
+ * never a counter (Module Standard, "One data port"): every write stores a new
+ * random write revision in the record's `revision` field, and the port's
+ * revision combines that value with a fingerprint of the content, so after
+ * A → B → A it differs and a direct change that kept the old write revision is
+ * still a change. It is not the record's `revision` field itself.
+ */
 export type Revision = string;
 
 export interface Stored<T> {
@@ -26,7 +34,8 @@ export interface Stored<T> {
 
 /**
  * Draft & Publish is the contract of the UI: an edit is a draft, a person
- * reviews it and publishes it as one change. The card input is the shared
+ * reviews it and publishes it as one change (or an agent does, on the
+ * person's explicit instruction). The card input is the shared
  * view model of `@lazurio/repository-db`, which a v4 store produces as well.
  */
 export type DraftCard = DraftPanelInput;
@@ -83,17 +92,27 @@ export interface MissionControlStore {
 /**
  * A refusal with a locale-neutral `code` (repository-db's error codes and the
  * App's own); the UI words it. `issues` name what in a record was refused.
+ * A `record_changed` of a record that exists carries its `currentRevision`,
+ * the port's revision of the record as it stands now (Module Standard, "What
+ * every App answers"), so a caller can read it again and save with it.
  */
 export class StoreError extends Error {
   readonly code: string;
   readonly issues: readonly RuleIssue[];
+  readonly currentRevision: Revision | undefined;
 
-  constructor(code: string, message: string, issues: RuleIssue[] = []) {
+  constructor(code: string, message: string, issues: RuleIssue[] = [], currentRevision?: Revision) {
     super(message);
     this.name = "StoreError";
     this.code = code;
     this.issues = issues;
+    this.currentRevision = currentRevision;
   }
+}
+
+/** The refusal of a save whose base is not the record as it stands. */
+export function recordChanged(message: string, currentRevision?: Revision): StoreError {
+  return new StoreError("record_changed", message, [], currentRevision);
 }
 
 /** The operations of the port that only read; every other one changes data. */

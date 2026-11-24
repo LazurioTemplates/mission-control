@@ -17,7 +17,10 @@ on this repository. Do not open a public issue for it.
   only through repository-db (`readDataFile`, `assertDataPath`,
   `writeRecordDraft`), which refuses symbolic links and paths outside the
   checkout. A save names the revision it was edited from; a stale save is
-  refused.
+  refused. The revision is new for every write (a random write revision in
+  the record with a fingerprint of its content), so neither A → B → A nor a
+  direct edit of the file that kept the write revision lets a stale save
+  through.
 - **Publishing is one validated commit.** repository-db runs the data
   repository's validator before every publish. Who may publish is decided by
   the person's live GitHub rights on the data repository; the App keeps no

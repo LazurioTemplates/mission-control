@@ -41,7 +41,10 @@ rights of its people, not this repository's maintainers.
 - `app/v3/src/data/repository-db-store.ts` implements it with
   `@lazurio/repository-db`: reads through `host.read` with the shared reader
   of `files.ts`, writes through `host.run` and `writeRecordDraft` with the
-  base revision and `assertDataPath`. Never run Git on the data checkout,
+  base revision and `assertDataPath`. Every write of a plan or roadmap, in
+  every store, stores a new `randomUUID()` in the record's `revision` field;
+  the port's revision is that value with a fingerprint of the content
+  (`portRevision` in `records.ts`), never the content alone. Never run Git on the data checkout,
   never keep a second write queue, poll loop or conflict state.
 - `app/v3/tests/store-contract.ts` is the shared suite of the port. A change
   of the port's behaviour changes the suite, and every implementation passes it.
@@ -62,6 +65,27 @@ rights of its people, not this repository's maintainers.
   and in English, never inline in a component or the server. The server and
   the domain return stable codes with English messages for agents; the UI
   words the codes. One screen shows one language.
+
+## Working with an Organization's plans
+
+Use the skills in `.agents/skills/` (the same files in `.claude/skills/`):
+
+- `create-plan`: create a plan from what a person wants to change and why;
+- `check-plans`: check the plans and roadmaps, draft included;
+- `publish-plan-changes`: publish the draft, only on the person's "Publikuj".
+
+Work through the App's tools for agents (`app/v3/src/server/agent-tools.ts`):
+on `/mcp` of the Application, or the same tools as WebMCP in the Environment
+browser. On the Environment's own copy the HTTP API on its loopback address
+works too. Never edit the files of `db/`. Saves are drafts; publishing the
+draft is a Publication into the Organization's data, only on the person's
+explicit instruction. `publish_draft` is its own tool, offered wherever the
+App may write, in a production application too (module-kit 0.6.0).
+Discarding draft changes cannot be taken back, so `discard_draft` is a
+Publication too (`effect: "publish"`), only on the person's explicit
+"Publikuj" for exactly those changes.
+Finishing a send and taking colleagues' work
+stay that page's buttons.
 
 ## Before a pull request
 

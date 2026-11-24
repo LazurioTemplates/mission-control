@@ -32,7 +32,7 @@ export interface ApiOptions {
 
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-const newPlanInput = z.strictObject({
+export const newPlanInput = z.strictObject({
   title: z.string().trim().min(1),
   owner: z.string().trim().min(1),
   priority,
@@ -44,17 +44,17 @@ const newPlanInput = z.strictObject({
   validation: z.array(z.string().trim().min(1)).min(1),
 });
 
-const saveInput = z.strictObject({
+export const saveInput = z.strictObject({
   record: z.unknown(),
   baseRevision: z.string().nullable(),
 });
 
-const publishInput = z.strictObject({
+export const publishInput = z.strictObject({
   expectedRevision: z.string().min(1),
   summary: z.string().trim().min(1).optional(),
 });
 
-const discardInput = z.strictObject({
+export const discardInput = z.strictObject({
   scope: z.union([
     z.strictObject({ kind: z.literal("draft") }),
     z.strictObject({ kind: z.literal("record"), path: z.string().min(1) }),
@@ -66,9 +66,21 @@ function json(body: unknown, status = 200): Response {
   return Response.json(body, { status, headers: { "cache-control": "no-store" } });
 }
 
-/** A refusal: a stable `code` the UI words, an English `message` for agents and logs. */
-function refusal(code: string, message: string, status: number, issues: unknown[] = []) {
-  return json({ code, message, issues }, status);
+/**
+ * A refusal: a stable `code` the UI words, an English `message` for agents and
+ * logs. A `record_changed` of a record that exists carries `current_revision`.
+ */
+function refusal(
+  code: string,
+  message: string,
+  status: number,
+  issues: unknown[] = [],
+  currentRevision?: string,
+) {
+  return json(
+    { code, message, issues, ...(currentRevision ? { current_revision: currentRevision } : {}) },
+    status,
+  );
 }
 
 const STATUS_BY_CODE: Record<string, number> = {
@@ -95,7 +107,13 @@ const STATUS_BY_CODE: Record<string, number> = {
 
 function errorResponse(error: unknown): Response {
   if (error instanceof StoreError) {
-    return refusal(error.code, error.message, STATUS_BY_CODE[error.code] ?? 409, [...error.issues]);
+    return refusal(
+      error.code,
+      error.message,
+      STATUS_BY_CODE[error.code] ?? 409,
+      [...error.issues],
+      error.currentRevision,
+    );
   }
   console.error(error);
   return refusal("unexpected", error instanceof Error ? error.message : String(error), 500);

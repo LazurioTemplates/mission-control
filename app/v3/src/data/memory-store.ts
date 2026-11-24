@@ -5,7 +5,14 @@ import type { Roadmap } from "../domain/roadmap.ts";
 import { checkRules } from "../domain/rules.ts";
 import { DEFAULT_LOCALE } from "../i18n/locale.ts";
 import { messagesFor } from "../i18n/messages.ts";
-import { assertRulesFor, parsePlan, parseRoadmap, recordFileName } from "./records.ts";
+import {
+  assertRulesFor,
+  parsePlan,
+  parseRoadmap,
+  portRevision,
+  recordFileName,
+  withNewRevision,
+} from "./records.ts";
 import { changedFields, changeSummary } from "./review-adapter.ts";
 import type {
   DiscardScope,
@@ -15,7 +22,7 @@ import type {
   Stored,
   StoreEvent,
 } from "./store.ts";
-import { StoreError } from "./store.ts";
+import { recordChanged, StoreError } from "./store.ts";
 
 /**
  * Mission Control's storage in memory: the same port and the same Draft &
@@ -32,8 +39,12 @@ export interface MemoryStoreSeed {
 type Key = `plan:${string}` | `roadmap:${string}`;
 type Value = Plan | Roadmap;
 
+/** The record's write revision and a fingerprint of its content (`portRevision`). */
 function revisionOf(value: Value): Revision {
-  return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
+  return portRevision(
+    value.revision,
+    `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`,
+  );
 }
 
 export function createMemoryStore(seed: MemoryStoreSeed): MissionControlStore {
@@ -78,14 +89,14 @@ export function createMemoryStore(seed: MemoryStoreSeed): MissionControlStore {
 
   function save<T extends Value>(key: Key, code: string, value: T, base: Revision | null) {
     const current = draft.get(key);
-    if (base === null && current) throw new StoreError("record_changed", `${code} already exists.`);
-    if (base !== null && !current) {
-      throw new StoreError("record_changed", `${code} no longer exists.`);
+    if (base === null && current) {
+      throw recordChanged(`${code} already exists.`, revisionOf(current));
     }
+    if (base !== null && !current) throw recordChanged(`${code} no longer exists.`);
     if (current && base !== revisionOf(current)) {
-      throw new StoreError(
-        "record_changed",
+      throw recordChanged(
         `${code} was saved by someone else since it was read.`,
+        revisionOf(current),
       );
     }
     const previous = draft.get(key);
@@ -118,7 +129,12 @@ export function createMemoryStore(seed: MemoryStoreSeed): MissionControlStore {
       return value ? stored(value) : null;
     },
     savePlan: async (value, base) =>
-      save(`plan:${value.dev_code}`, value.dev_code, parsePlan(value, value.dev_code), base),
+      save(
+        `plan:${value.dev_code}`,
+        value.dev_code,
+        withNewRevision(parsePlan(value, value.dev_code)),
+        base,
+      ),
     listRoadmaps: async () => roadmaps().map(stored),
     getRoadmap: async (code) => {
       const value = draft.get(`roadmap:${code}`) as Roadmap | undefined;
@@ -128,7 +144,7 @@ export function createMemoryStore(seed: MemoryStoreSeed): MissionControlStore {
       save(
         `roadmap:${value.roadmap_code}`,
         value.roadmap_code,
-        parseRoadmap(value, value.roadmap_code),
+        withNewRevision(parseRoadmap(value, value.roadmap_code)),
         base,
       ),
     check: async () => checkRules(ruleInput()),

@@ -1,9 +1,10 @@
+import { randomUUID } from "node:crypto";
 import type { z } from "zod";
 import { type MissionControlConfig, missionControlConfig } from "../domain/config.ts";
 import { type Plan, plan } from "../domain/plan.ts";
 import { type Roadmap, roadmap } from "../domain/roadmap.ts";
 import { checkRules, type RuleIssue } from "../domain/rules.ts";
-import { StoreError } from "./store.ts";
+import { type Revision, StoreError } from "./store.ts";
 
 /** Every issue of a Zod parse as a schema issue of `record`, with its path, kind and rule. */
 export function schemaIssues(error: z.ZodError, record: string): RuleIssue[] {
@@ -39,6 +40,28 @@ export const parseRoadmap = (value: unknown, label: string): Roadmap =>
   parseRecord(roadmap, value, label);
 export const parseConfig = (value: unknown, label: string): MissionControlConfig =>
   parseRecord(missionControlConfig, value, label);
+
+/**
+ * The record as the port writes it: with a new write revision, a random value
+ * no earlier write had (Module Standard, "One data port"). Whatever revision
+ * the caller sent is replaced.
+ */
+export function withNewRevision<T extends { revision?: string }>(value: T): T {
+  return { ...value, revision: randomUUID() };
+}
+
+/**
+ * The revision the port hands out and compares: the record's stored write
+ * revision and a fingerprint of its content. The write revision makes it new
+ * on every write, also after A → B → A; the fingerprint makes a direct change
+ * that kept the old write revision a change too. A record written before the
+ * write revision existed has the fingerprint alone until its first save.
+ */
+export function portRevision(stored: unknown, fingerprint: string): Revision {
+  return typeof stored === "string" && stored.length > 0
+    ? `rev:${stored};${fingerprint}`
+    : fingerprint;
+}
 
 /** File name of a new record: its code and a slug of its title. */
 export function recordFileName(code: string, title: string): string {

@@ -7,8 +7,9 @@ import {
   withHealth,
 } from "@lazurio/module-kit";
 import type { MissionControlStore } from "../data/store.ts";
-import type { Locale } from "../i18n/locale.ts";
+import { DEFAULT_LOCALE, type Locale } from "../i18n/locale.ts";
 import { accessOf, LISTENER } from "./access.ts";
+import { createAgentTools } from "./agent-tools.ts";
 import { createApi } from "./api.ts";
 import { clientDirectory, createStaticHandler } from "./static.ts";
 
@@ -57,6 +58,14 @@ export async function serve(
     access: options.access ?? ((request) => accessOf(request)),
     ...(options.locale ? { locale: options.locale } : {}),
   });
+  // The tools for agents call the same API (`agent-tools.ts`), offered on
+  // `/mcp` and to the page on `/api/agent-tools`.
+  const [ownOrigin] = origins;
+  const tools = createAgentTools({
+    api,
+    origin: app.externalOrigin ?? ownOrigin ?? `http://127.0.0.1:${app.port}`,
+    locale: options.locale ?? DEFAULT_LOCALE,
+  });
 
   const hostAllowed = (req: Request) => {
     const header = req.headers.get("host") ?? "";
@@ -71,6 +80,9 @@ export async function serve(
   const handle = withHealth(
     async (req: Request) => {
       const url = new URL(req.url);
+      if (url.pathname === "/mcp") return tools.handleMcp(req);
+      const toolPage = await tools.handlePage(req);
+      if (toolPage) return toolPage;
       if (url.pathname.startsWith("/api/")) return api(req);
       if (url.pathname.startsWith(LAZURIO_PATHS)) return notLazurio();
       if (serveClient && (req.method === "GET" || req.method === "HEAD")) {
@@ -95,6 +107,7 @@ export async function serve(
         development: { hmr: true, console: false },
         routes: {
           "/api/*": guarded,
+          "/mcp": guarded,
           "/.lazurio/*": guarded,
           [HEALTH_PATH]: guarded,
           "/*": (await import("../ui/index.html")).default,

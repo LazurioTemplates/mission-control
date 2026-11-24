@@ -2,7 +2,7 @@ import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { gatewayRequest, TEST_ORIGIN } from "@lazurio/module-kit/tools/testing";
-import { toStableYaml } from "@lazurio/repository-db";
+import { parseYaml, toStableYaml } from "@lazurio/repository-db";
 import { createRepositoryDbStore } from "../src/data/repository-db-store.ts";
 import { MESSAGES } from "../src/i18n/messages.ts";
 import { copyWrites } from "../src/server/access.ts";
@@ -48,6 +48,53 @@ describe("repository-db store", () => {
       expect(log).toContain("Plan EX-0005");
       expect(log).toContain("Repository-Db-Source: mission-control-v3");
       expect(git(fixture.originPath, ["rev-list", "--count", "v3"])).toBe("2");
+    } finally {
+      store.close();
+      fixture.cleanup();
+    }
+  });
+
+  test("stores the write revision in the record and sees a direct change that kept it", async () => {
+    const fixture = createFixtureRepo({ sample: true });
+    const store = createRepositoryDbStore({
+      mountRoot: fixture.mountRoot,
+      expect: { remote: fixture.origin, branch: "v3", within: fixture.moduleRoot },
+      intervalMs: 0,
+    });
+    try {
+      const created = await store.savePlan(newPlan(), null);
+      const path = join(
+        fixture.mountRoot,
+        "data/mission-control/plans/2026/11/EX-0005-shared-glossary-review.yaml",
+      );
+      const stored = parseYaml(readFileSync(path, "utf8")) as Record<string, unknown>;
+      expect(stored.revision).toBe(created.value.revision);
+      expect(created.revision).toContain(String(created.value.revision));
+
+      // An agent edits the file by hand and keeps the write revision it found.
+      writeFileSync(path, toStableYaml({ ...stored, title: "Changed by hand" }));
+      const current = await store.getPlan("EX-0005");
+      expect(current?.value.revision).toBe(created.value.revision);
+      expect(current?.revision).not.toBe(created.revision);
+      let code: string | undefined;
+      try {
+        await store.savePlan({ ...created.value, owner: "samtaylor" }, created.revision);
+      } catch (error) {
+        code = (error as { code?: string }).code;
+      }
+      expect(code).toBe("record_changed");
+      expect((await store.getPlan("EX-0005"))?.value.title).toBe("Changed by hand");
+
+      // The revision read after the direct change saves, with a new write revision.
+      if (!current) throw new Error("EX-0005 missing");
+      const saved = await store.savePlan(
+        { ...current.value, owner: "samtaylor" },
+        current.revision,
+      );
+      expect(saved.value.revision).not.toBe(created.value.revision);
+      expect((await store.draft()).records?.[0]?.resource.changes[0]?.fields).not.toContainEqual(
+        expect.objectContaining({ fieldPath: "/revision" }),
+      );
     } finally {
       store.close();
       fixture.cleanup();

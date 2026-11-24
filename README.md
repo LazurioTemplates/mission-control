@@ -6,8 +6,8 @@ which acceptance criteria everyone knows it is done. Roadmaps order plans into
 steps over time and show what can start now. Every plan has an owner, tasks
 have assignees, and a roadmap names the agents doing its work and the people
 who review it. Every edit is first a draft: a person reviews the changed
-records in plain words and publishes them as one change, so colleagues and
-agents always work from the same, current plan.
+records in plain words and publishes them as one change, or tells an agent
+to, so colleagues and agents always work from the same, current plan.
 
 ![The overview: what Mission Control is for, plans by state, the main roadmap and its next steps](docs/screenshots/en/mission-control-overview.webp)
 
@@ -19,7 +19,8 @@ agents always work from the same, current plan.
   roadmap can be the main one.
 - **Draft & Publish**: an edit is a draft. A person reviews the changed
   records in business language and publishes them as one change to the
-  Organization's data, or returns them.
+  Organization's data, or returns them. An agent publishes only on the
+  person's explicit "Publikuj".
 
 The interface speaks Czech and English. It follows the language Lazurio
 gives the page (the `locale` of `/.lazurio/shell.json`) and is Czech where
@@ -122,8 +123,10 @@ agents (`list_plans`, `get_plan`, `create_plan`, `save_plan`, `check_plans`,
 `get_draft` and more), defined once on its server: on `/mcp` of the
 Application and as WebMCP tools in the Environment browser. They list only
 what the person's role and the writer mode allow. Saving is a draft;
-`publish_draft` is a tool of its own, offered in an Environment and not in a
-production application, where a person publishes on the Draft page.
+`publish_draft` is a tool of its own, offered wherever the App may write, in
+a production application too (module-kit 0.6.0). Publishing is a Publication
+into the Organization's data: an agent calls `publish_draft` only on the
+person's explicit "Publikuj", and a person can publish on the Draft page.
 
 ## Adopt it
 

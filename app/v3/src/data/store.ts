@@ -26,7 +26,8 @@ export interface Stored<T> {
 
 /**
  * Draft & Publish is the contract of the UI: an edit is a draft, a person
- * reviews it and publishes it as one change. The card input is the shared
+ * reviews it and publishes it as one change (or an agent does, on the
+ * person's explicit instruction). The card input is the shared
  * view model of `@lazurio/repository-db`, which a v4 store produces as well.
  */
 export type DraftCard = DraftPanelInput;

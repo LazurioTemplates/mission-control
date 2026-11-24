@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import type { AppAccess } from "@lazurio/module-kit";
 import { localEnvironment } from "@lazurio/module-kit/tools/testing";
-import type { AgentTools } from "@lazurio/module-kit/webmcp";
+import {
+  type AgentTools,
+  type ModelContextLike,
+  type RegisterAgentToolsOptions,
+  registerAgentTools,
+  type WebMcpTool,
+} from "@lazurio/module-kit/webmcp";
 import { MESSAGES } from "../src/i18n/messages.ts";
 import { LISTENER } from "../src/server/access.ts";
 import { createAgentTools } from "../src/server/agent-tools.ts";
@@ -95,7 +101,7 @@ describe("tools for agents: names, schemas and descriptions", () => {
 
   test("the page registers the server's tools once, refreshes them and removes them", async () => {
     const calls: string[] = [];
-    const fake = async (): Promise<AgentTools> => ({
+    const register = async (): Promise<AgentTools> => ({
       registered: [],
       refresh: async () => {
         calls.push("refresh");
@@ -103,15 +109,79 @@ describe("tools for agents: names, schemas and descriptions", () => {
       },
       unregister: () => calls.push("unregister"),
     });
-    const tools = installTools(fake);
+    const tools = installTools({ register, modelContext: null });
     tools.refresh();
     await Bun.sleep(0);
     tools.remove();
-    expect(calls).toEqual(["refresh", "unregister"]);
-    // Removed before the server answered: nothing stays registered.
-    const late = installTools(fake);
-    late.remove();
     await Bun.sleep(0);
     expect(calls).toEqual(["refresh", "unregister", "unregister"]);
+    // Removed before the server answered: nothing stays registered.
+    calls.length = 0;
+    const late = installTools({ register, modelContext: null });
+    late.remove();
+    late.refresh();
+    await Bun.sleep(0);
+    expect(calls).toEqual(["unregister", "unregister"]);
+    // A registration or refresh that fails leaves the page working.
+    const failing = installTools({
+      register: async () => {
+        throw new Error("the server did not answer");
+      },
+      modelContext: null,
+    });
+    failing.refresh();
+    failing.remove();
+    await Bun.sleep(0);
+  });
+
+  test("the browser's registerTool promise rejects on removal; nothing goes unhandled and the tools come back", async () => {
+    // As the WebMCP API of the Environment browser: registerTool(tool, { signal })
+    // returns a promise that rejects with AbortError once the signal aborts.
+    const live = new Map<string, WebMcpTool>();
+    const browser: ModelContextLike = {
+      registerTool(tool, options) {
+        live.set(tool.name, tool);
+        return new Promise((_, reject) => {
+          options?.signal?.addEventListener("abort", () => {
+            live.delete(tool.name);
+            reject(new DOMException("signal is aborted without reason", "AbortError"));
+          });
+        });
+      },
+    };
+    const registry = createAgentTools({
+      api: async () => Response.json({}),
+      origin: "http://127.0.0.1:43100",
+      locale: "en",
+      env: localEnvironment(LISTENER),
+      audit: () => {},
+    });
+    const listed = JSON.parse(JSON.stringify({ tools: registry.list(LOCAL) }));
+    const register = (options: RegisterAgentToolsOptions) =>
+      registerAgentTools({
+        ...options,
+        fetch: (async () => Response.json(listed)) as unknown as typeof fetch,
+      });
+
+    const unhandled: unknown[] = [];
+    const record = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", record);
+    try {
+      const tools = installTools({ register, modelContext: browser });
+      await Bun.sleep(10);
+      expect([...live.keys()].sort()).toEqual(
+        listed.tools.map((tool: { name: string }) => tool.name).sort(),
+      );
+      tools.refresh();
+      await Bun.sleep(10);
+      expect(live.size).toBe(listed.tools.length);
+      expect(live.has("list_plans")).toBe(true);
+      tools.remove();
+      await Bun.sleep(10);
+      expect(live.size).toBe(0);
+    } finally {
+      process.off("unhandledRejection", record);
+    }
+    expect(unhandled).toEqual([]);
   });
 });

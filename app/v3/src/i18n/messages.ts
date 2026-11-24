@@ -459,7 +459,7 @@ const cs = {
     get_draft:
       "Vrátí koncept: jeho stav, změněné záznamy s popisem změn po polích (technicalPath pro discard_draft) a revizi konceptu (revision), kterou potřebují publish_draft a discard_draft. Nic nemění.",
     create_plan:
-      "Založí nový plán jako koncept. Kód s prefixem Organizace přidělí Mission Control; vrátí uložený plán a jeho revizi. Nic nepublikuje: koncept zkontroluje a publikuje člověk.",
+      "Založí nový plán jako koncept. Kód s prefixem Organizace přidělí Mission Control; vrátí uložený plán a jeho revizi. Nic nepublikuje: koncept zkontroluje člověk a publikuje ho na stránce Koncept a publikace, nebo ho na jeho výslovný pokyn „Publikuj“ publikuje publish_draft.",
     save_plan:
       "Uloží celý upravený plán jako koncept. record je úplný záznam z get_plan se změnami, baseRevision revize, ze které vychází; plán, který se mezitím změnil, odmítne s record_changed. Nový plán zakládá create_plan. Nic nepublikuje.",
     save_roadmap:
@@ -859,7 +859,7 @@ const en: Messages = {
     get_draft:
       "Returns the draft: its state, the changed records with their changes field by field (technicalPath for discard_draft) and the draft's revision, which publish_draft and discard_draft need. Changes nothing.",
     create_plan:
-      "Creates a new plan as a draft. Mission Control gives it the next code with the Organization's prefix; returns the saved plan and its revision. Publishes nothing: a person reviews and publishes the draft.",
+      'Creates a new plan as a draft. Mission Control gives it the next code with the Organization\'s prefix; returns the saved plan and its revision. Publishes nothing: a person reviews the draft and publishes it on the Draft and publish page, or publish_draft publishes it on their explicit "Publikuj" (publish).',
     save_plan:
       "Saves a whole edited plan as a draft. record is the complete record from get_plan with the changes, baseRevision the revision it was edited from; a plan that changed in the meantime is refused with record_changed. A new plan is create_plan. Publishes nothing.",
     save_roadmap:

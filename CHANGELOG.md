@@ -28,7 +28,20 @@
   (`effect: "publish"`, `destructiveHint`), only on the person's explicit
   "Publikuj". It is offered wherever the App may write, in a production
   application too (module-kit 0.6.0). Finishing a send and taking
-  colleagues' work are no tools.
+  colleagues' work are no tools. The README, the skill `create-plan` and the
+  description of `create_plan` in both languages say the same: a person
+  publishes on the Draft page, or an agent with `publish_draft` on the
+  person's explicit "Publikuj".
+- The page registers its WebMCP tools without unhandled rejections. The
+  browser's `registerTool(tool, { signal })` returns a promise that rejects
+  with `AbortError` once a refresh or removal aborts the signal, and
+  module-kit 0.6.0 does not handle it (Lazurio/module-kit#14): in the
+  Environment browser `bun run dev:demo` opened Bun's error overlay with one
+  rejection per removed tool. `app/v3/src/ui/webmcp.ts` now hands
+  `registerAgentTools` the browser's `modelContext` behind a wrapper that
+  handles that promise, runs a refresh only after the registration or the
+  previous refresh, and keeps the page working when the server's tool list
+  does not answer.
 - Skills in `.agents/skills/` (the same files in `.claude/skills/`):
   `create-plan`, `check-plans` and `publish-plan-changes`.
 

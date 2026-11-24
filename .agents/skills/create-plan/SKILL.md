@@ -8,7 +8,7 @@ description: "Create a new Mission Control plan from what a person wants to chan
 A plan says what should change and why, for whom, and by which acceptance
 criteria everyone knows it is done. You turn a person's words into a plan,
 show it, and save it as a draft. You never guess an owner or invent a
-criterion the person did not agree to, and you never publish.
+criterion the person did not agree to, and this skill never publishes.
 
 ## 1. Find the App and who you are to it
 
